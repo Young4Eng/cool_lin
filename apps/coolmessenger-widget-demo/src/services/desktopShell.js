@@ -69,6 +69,9 @@ export async function withWidgetHidden(run) {
   if (!inDesktopShell()) return run();
   try {
     await invoke('set_widget_visible', { visible: false });
+    // 창을 숨기라고 시킨 것과 화면에서 실제로 사라지는 것은 다르다. 곧바로 자동화를
+    // 시작하면 화면에는 아직 위젯이 남아 있어 메신저 단추 대신 위젯이 찍힌다.
+    await new Promise((r) => setTimeout(r, 450));
   } catch {}
   try {
     return await run();
@@ -77,4 +80,30 @@ export async function withWidgetHidden(run) {
       await invoke('set_widget_visible', { visible: true });
     } catch {}
   }
+}
+
+/** 바탕화면의 가장 최근 쿨메신저 내보내기 파일. 없으면 null. */
+export async function readLatestExport() {
+  if (!inDesktopShell()) return null;
+  try {
+    return await invoke('read_latest_export');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 쿨메신저 창을 조작해 새로 내려받는다.
+ * 파이썬을 셸이 직접 부른다 — Node 서버를 거치지 않는다.
+ */
+export async function runMessengerDownload() {
+  const line = await invoke('run_messenger_download');
+  let data;
+  try {
+    data = JSON.parse(line);
+  } catch {
+    throw new Error('쿨메신저 조작 결과를 읽지 못했습니다.');
+  }
+  if (data.ok === false) throw new Error(data.error || '쿨메신저에서 받지 못했습니다.');
+  return data;
 }

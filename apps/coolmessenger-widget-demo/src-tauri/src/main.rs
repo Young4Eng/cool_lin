@@ -4,6 +4,8 @@
 // 부팅 자동 실행은 기술계획서 7.9 / 8.6 의 규칙을 따른다.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::path::PathBuf;
+
 use tauri::{AppHandle, Manager, PhysicalPosition};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
@@ -121,6 +123,120 @@ fn set_widget_visible(app: AppHandle, visible: bool) {
     }
 }
 
+/// 쿨메신저가 바탕화면에 내려놓은 내보내기 파일 하나.
+#[derive(serde::Serialize)]
+struct ExportFile {
+    path: String,
+    text: String,
+}
+
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
+}
+
+fn export_dirs() -> Vec<PathBuf> {
+    match home_dir() {
+        Some(home) => vec![home.join("Desktop"), home.join("OneDrive").join("Desktop")],
+        None => Vec::new(),
+    }
+}
+
+/// 바탕화면(과 OneDrive 바탕화면)에서 가장 최근 `coolmsg_*.xls` 를 읽는다.
+///
+/// 이 파일을 읽는 데 서버는 필요 없다. 예전에는 Node 서버에 HTTP 로 물어봤는데,
+/// 그러면 교사가 `npm run dev:server` 를 직접 띄워야 위젯이 일정을 보여 준다.
+/// 설치해서 쓰는 프로그램이 그럴 수는 없다.
+#[tauri::command]
+fn read_latest_export() -> Option<ExportFile> {
+    let mut newest: Option<(std::time::SystemTime, PathBuf)> = None;
+
+    for dir in export_dirs() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = match path.file_name() {
+                Some(n) => n.to_string_lossy().to_lowercase(),
+                None => continue,
+            };
+            if !name.starts_with("coolmsg_") || !name.ends_with(".xls") {
+                continue;
+            }
+            let Ok(modified) = entry.metadata().and_then(|m| m.modified()) else {
+                continue;
+            };
+            if newest.as_ref().map_or(true, |(t, _)| modified > *t) {
+                newest = Some((modified, path));
+            }
+        }
+    }
+
+    let (_, path) = newest?;
+    // 내보내기는 BOM 붙은 UTF-8 이다. BOM 을 떼지 않으면 XML 파서가 첫 태그를 못 읽는다.
+    let text = std::fs::read_to_string(&path).ok()?;
+    Some(ExportFile {
+        path: path.to_string_lossy().to_string(),
+        text: text.trim_start_matches('\u{feff}').to_string(),
+    })
+}
+
+/// 함께 설치된 파이썬 자동화 폴더.
+fn python_dir(app: &AppHandle) -> Option<PathBuf> {
+    // 설치본: 앱 리소스 안에 들어 있다.
+    if let Ok(res) = app.path().resource_dir() {
+        let p = res.join("python");
+        if p.join("ingest.py").exists() {
+            return Some(p);
+        }
+    }
+    // 개발 중: 실행 파일에서 위로 올라가며 저장소의 server/python 을 찾는다.
+    let mut dir = std::env::current_exe().ok()?;
+    for _ in 0..7 {
+        if !dir.pop() {
+            break;
+        }
+        let p = dir.join("server").join("python");
+        if p.join("ingest.py").exists() {
+            return Some(p);
+        }
+    }
+    None
+}
+
+/// 쿨메신저 창을 조작해 어제~오늘 메시지를 새로 내려받는다.
+///
+/// 파이썬을 여기서 직접 부른다. Node 서버를 거칠 이유가 없다 — 서버가 하던 일은
+/// 이 명령을 대신 실행해 주는 것뿐이었다. 마지막 stdout 줄(JSON)을 그대로 돌려준다.
+#[tauri::command]
+fn run_messenger_download(app: AppHandle) -> Result<String, String> {
+    let dir = python_dir(&app).ok_or("파이썬 자동화 폴더를 찾지 못했습니다.")?;
+
+    let output = std::process::Command::new("py")
+        .args(["-3", "ingest.py", "ingest"])
+        .current_dir(&dir)
+        .env("PYTHONIOENCODING", "utf-8")
+        .env("PYTHONUTF8", "1")
+        .output()
+        .map_err(|e| {
+            format!("파이썬을 실행하지 못했습니다: {e}. `py -3` 가 설치돼 있는지 확인해 주세요.")
+        })?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    match stdout.lines().filter(|l| !l.trim().is_empty()).last() {
+        Some(line) => Ok(line.to_string()),
+        None => {
+            let err = String::from_utf8_lossy(&output.stderr);
+            Err(format!(
+                "쿨메신저 조작이 아무 것도 돌려주지 않았습니다. {}",
+                err.lines().last().unwrap_or("")
+            ))
+        }
+    }
+}
+
 /// 지금 부팅 자동 실행이 켜져 있는가.
 #[tauri::command]
 fn autostart_status(app: AppHandle) -> bool {
@@ -150,7 +266,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             autostart_status,
             autostart_set,
-            set_widget_visible
+            set_widget_visible,
+            read_latest_export,
+            run_messenger_download
         ])
         .setup(|app| {
             place_widget(app.handle());

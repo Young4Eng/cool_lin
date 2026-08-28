@@ -53,6 +53,9 @@
         ],
         "displayLanguageSelector": false
       }
+    },
+    "resources": {
+      "../../../server/python": "python"
     }
   }
 }

@@ -11,6 +11,8 @@ import {
   fetchFromLatestDownload,
   isServerReachable,
 } from './realIngestClient';
+import { inDesktopShell, readLatestExport, runMessengerDownload } from './desktopShell';
+import { eventsFromExport } from './localExport';
 
 /**
  * 같은 일정인지 판별하는 열쇠.
@@ -63,17 +65,42 @@ export function mergeEvents(existing, incoming) {
  *   `fresh`  — 쿨메신저 창을 실제로 조작해 새로 내려받는다. 10초쯤 걸리고 창이 앞으로 나온다.
  */
 export async function ingestOnce(existingEvents, mode = 'latest') {
+  const result = inDesktopShell()
+    ? await ingestInShell(mode)
+    : await ingestOverHttp(mode);
+
+  const merged = mergeEvents(existingEvents, result.events);
+  return { ...merged, file: result.file, scanned: result.events.length };
+}
+
+/**
+ * 설치본 경로 — 서버가 필요 없다.
+ *
+ * 파일 읽기와 파이썬 실행은 셸(Rust)이 하고, 해석은 엔진의 브라우저 진입점이 한다.
+ * 교사가 개발 서버를 띄워야 위젯이 도는 상태를 없애기 위한 것이다.
+ */
+async function ingestInShell(mode) {
+  if (mode === 'fresh') {
+    await runMessengerDownload();
+  }
+
+  const file = await readLatestExport();
+  if (!file) {
+    throw new Error(
+      mode === 'fresh'
+        ? '내려받은 파일을 찾지 못했습니다.'
+        : '아직 내려받은 쪽지가 없습니다. 「쿨메신저에서 가져오기」를 눌러 주세요.',
+    );
+  }
+
+  return { events: eventsFromExport(file.text), file: file.path };
+}
+
+/** 브라우저에서 열었을 때 — 예전처럼 서버에 물어본다. */
+async function ingestOverHttp(mode) {
   if (!(await isServerReachable())) {
     throw new Error('연동 서버에 연결하지 못했습니다. `npm run dev:server` 가 떠 있는지 확인해 주세요.');
   }
-
   const result = mode === 'fresh' ? await fetchFreshFromCoolMessenger() : await fetchFromLatestDownload();
-  const merged = mergeEvents(existingEvents, result.events);
-
-  return {
-    ...merged,
-    file: result.file,
-    stats: result.stats,
-    scanned: result.events.length,
-  };
+  return { events: result.events, file: result.file };
 }
