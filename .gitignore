@@ -4,3 +4,10 @@ dist/
 .env.local
 *.log
 .DS_Store
+
+# 실제 쿨메신저 내보내기 원본은 커밋하지 않는다 (PRD 22장)
+coolexcel/
+*.xls
+*.xlsx
+!fixtures/**/*.xls
+새 폴더/

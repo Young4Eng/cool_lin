@@ -6,8 +6,12 @@
     "dev": "concurrently -n server,client -c cyan,magenta \"npm:dev:server\" \"npm:dev:client\"",
     "dev:client": "npm --prefix client run dev",
     "dev:server": "npm --prefix server run dev",
-    "build": "npm --prefix server run build && npm --prefix client run build",
-    "install:all": "npm --prefix client install && npm --prefix server install"
+    "build": "npm --prefix packages/schedule-engine run build && npm --prefix server run build && npm --prefix client run build",
+    "install:all": "npm --prefix client install && npm --prefix server install && npm --prefix packages/schedule-engine install",
+    "engine:analyze": "npm --prefix packages/schedule-engine run analyze",
+    "engine:extract": "npm --prefix packages/schedule-engine run extract",
+    "engine:eval": "npm --prefix packages/schedule-engine run eval",
+    "engine:test": "npm --prefix packages/schedule-engine test"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
