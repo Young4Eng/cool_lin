@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_opener::OpenerExt;
 
 const WIDGET: &str = "widget";
 /// 「캘린더 크게 보기」 창. 위젯과 별개로 뜬다.
@@ -143,56 +144,77 @@ fn refresh_autostart_path(app: &AppHandle) {
 /// 보인다. 웹뷰를 다시 만드는 값은 그 고장에 비하면 아무것도 아니다.
 #[tauri::command]
 fn set_calendar_open(app: AppHandle, open: bool) {
-    if !open {
-        if let Some(win) = app.get_webview_window(CALENDAR) {
-            let _ = win.close();
-        }
-        return;
-    }
-
-    // 이미 떠 있으면 앞으로 꺼내기만 한다.
-    if let Some(win) = app.get_webview_window(CALENDAR) {
-        let _ = win.show();
-        let _ = win.unminimize();
-        let _ = win.set_focus();
-        return;
-    }
-
-    let builder = tauri::WebviewWindowBuilder::new(
-        &app,
-        CALENDAR,
-        tauri::WebviewUrl::App("calendar.html".into()),
-    )
-    .title("쿨린 캘린더 - 크게 보기")
-    .inner_size(CALENDAR_SIZE.0, CALENDAR_SIZE.1)
-    .min_inner_size(560.0, 420.0)
-    .resizable(true)
-    .center();
-
-    let Ok(win) = builder.build() else {
+    let Some(win) = app.get_webview_window(CALENDAR) else {
         return;
     };
 
-    // 모니터보다 크면 화면에 맞춰 줄이고 가운데로. 위젯(오른쪽 위)과 겹치지 않는다.
+    if !open {
+        let _ = win.hide();
+        // 캘린더만 보고 있다가 접었는데 위젯도 이미 닫혀 있으면, 보이는 창이 하나도 없다.
+        exit_if_nothing_visible(&app, None);
+        return;
+    }
+
+    // 화면에 맞춰 크기를 줄이고 가운데로. 위젯(오른쪽 위)과 겹치지 않는다.
     if let Ok(Some(monitor)) = win.primary_monitor() {
         let area = monitor.size();
         let origin = monitor.position();
         let scale = monitor.scale_factor();
         let max_w = (area.width as f64 / scale) - 40.0;
         let max_h = (area.height as f64 / scale) - 80.0;
-        if CALENDAR_SIZE.0 > max_w || CALENDAR_SIZE.1 > max_h {
-            let _ = win.set_size(LogicalSize::new(
-                CALENDAR_SIZE.0.min(max_w).max(360.0),
-                CALENDAR_SIZE.1.min(max_h).max(420.0),
-            ));
-        }
+        let _ = win.set_size(LogicalSize::new(
+            CALENDAR_SIZE.0.min(max_w).max(360.0),
+            CALENDAR_SIZE.1.min(max_h).max(420.0),
+        ));
         if let Ok(size) = win.outer_size() {
             let x = origin.x + (area.width as i32 - size.width as i32) / 2;
             let y = origin.y + (area.height as i32 - size.height as i32) / 2;
             let _ = win.set_position(PhysicalPosition::new(x.max(origin.x), y.max(origin.y)));
         }
     }
+
+    let _ = win.show();
+    let _ = win.unminimize();
     let _ = win.set_focus();
+}
+
+/// 보이는 창이 하나도 남지 않았으면 프로그램을 끝낸다.
+///
+/// 저절로 끝나지 않는다. 캘린더 창은 «닫아도» 없애지 않고 숨기기만 하고(다시 열 때
+/// 웹뷰를 새로 만들지 않으려고), 단일 실행 플러그인도 표시용 창을 하나 들고 있기 때문이다.
+/// 그대로 두면 위젯을 닫은 뒤 바탕화면 아이콘을 눌러도 「이미 실행 중」으로 판정돼 아무
+/// 창도 뜨지 않는다.
+///
+/// `just_destroyed` 는 방금 없어진 창의 이름이다. 그 창은 아직 목록에 남아 있을 수 있어
+/// 세지 않는다.
+fn exit_if_nothing_visible(app: &AppHandle, just_destroyed: Option<&str>) {
+    let any_visible = app.webview_windows().iter().any(|(label, win)| {
+        if Some(label.as_str()) == just_destroyed {
+            return false;
+        }
+        win.is_visible().unwrap_or(false)
+    });
+    if !any_visible {
+        app.exit(0);
+    }
+}
+
+/// 링크를 기본 브라우저로 연다 (구글 캘린더 등).
+///
+/// 화면에서 `window.open` 을 쓰면 **설치본에서는 아무 일도 일어나지 않는다.** 위젯이 도는
+/// WebView2 는 새 창 요청을 그냥 삼킨다 — 브라우저에서 시험할 때는 멀쩡해 보여서 놓치기
+/// 쉽다. 바깥 주소는 운영체제에 넘겨 기본 브라우저가 열게 한다.
+///
+/// http·https 만 연다. 화면이 넘긴 문자열을 그대로 셸에 주면 `file:` 이나 다른 스킴으로
+/// 엉뚱한 프로그램이 실행될 수 있다.
+#[tauri::command]
+fn open_external(app: AppHandle, url: String) -> Result<(), String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("http·https 주소만 열 수 있습니다.".into());
+    }
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 /// 마감이 다가온 일정을 윈도우 알림으로 띄운다 (화면 오른쪽 아래).
@@ -382,25 +404,25 @@ fn main() {
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         // 마감 알림을 윈도우 알림 센터로 띄운다.
         .plugin(tauri_plugin_notification::init())
-        // 마지막 창이 닫히면 프로그램을 끝낸다.
+        // 바깥 링크(구글 캘린더)를 기본 브라우저로 넘긴다.
+        .plugin(tauri_plugin_opener::init())
+        // 창이 닫힐 때마다 «보이는 창이 남았는가»를 본다 (exit_if_nothing_visible).
         //
-        // 저절로 끝나지 않는다. 단일 실행 플러그인이 «이미 실행 중»을 알아보려고 만들어 둔
-        // 표시용 창이 남아 프로세스를 살려 두기 때문이다. 그러면 위젯을 닫은 뒤 바탕화면
-        // 아이콘을 눌러도 「이미 실행 중」으로 판정돼 아무 창도 뜨지 않는다.
+        // 캘린더의 X 는 «없애기»가 아니라 «접기»다. 없애 버리면 다시 열 때 웹뷰를 새로
+        // 만들어야 하는데, 명령이 도는 작업 스레드에서 웹뷰를 만들면 속이 하얀 빈 창이
+        // 뜬다 (실제로 겪었다). 그래서 숨기기만 한다.
         .on_window_event(|window, event| {
-            if !matches!(event, tauri::WindowEvent::Destroyed) {
-                return;
-            }
             let app = window.app_handle();
-            let closing = window.label();
-            // 방금 닫힌 창은 아직 목록에 남아 있을 수 있으므로 빼고 센다.
-            let remaining = app
-                .webview_windows()
-                .into_keys()
-                .filter(|label| label != closing)
-                .count();
-            if remaining == 0 {
-                app.exit(0);
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } if window.label() == CALENDAR => {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    exit_if_nothing_visible(app, None);
+                }
+                tauri::WindowEvent::Destroyed => {
+                    exit_if_nothing_visible(app, Some(window.label()));
+                }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -409,6 +431,7 @@ fn main() {
             set_widget_visible,
             set_calendar_open,
             notify_deadline,
+            open_external,
             read_latest_export,
             run_messenger_download
         ])
@@ -416,9 +439,6 @@ fn main() {
             place_widget(app.handle());
             refresh_autostart_path(app.handle());
 
-            // 창을 닫는 일은 따로 가로채지 않는다. 캘린더는 누를 때 만들고 접을 때
-            // 없애므로(`set_calendar_open`), 위젯을 닫으면 남는 창이 없어 프로그램이
-            // 스스로 끝난다. 그래야 바탕화면 아이콘으로 다시 켤 수 있다.
             Ok(())
         })
         .run(tauri::generate_context!())

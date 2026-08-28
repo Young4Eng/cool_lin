@@ -99,6 +99,20 @@ export async function closeCalendarWindow() {
 }
 
 /**
+ * 바깥 주소를 기본 브라우저로 연다 (구글 캘린더 등).
+ *
+ * 설치본에서 `window.open` 은 아무 일도 하지 않는다 — WebView2 가 새 창 요청을 삼킨다.
+ * 브라우저에서 시험하면 멀쩡해 보여 놓치기 쉬운 함정이다. 셸이 있으면 운영체제에 넘긴다.
+ */
+export function openExternal(url) {
+  if (inDesktopShell()) {
+    invoke('open_external', { url }).catch(() => {});
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+/**
  * 마감 알림을 화면 오른쪽 아래(윈도우 알림)로 띄운다.
  *
  * 설치본에서는 셸이 운영체제 알림으로 올린다 — 위젯이 가려져 있어도 보여야 한다.
