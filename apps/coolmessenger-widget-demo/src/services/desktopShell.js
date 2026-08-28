@@ -58,12 +58,44 @@ export async function ensureAutostartOnFirstRun() {
   return setAutostart(true, { byUser: false });
 }
 
-/** 캘린더를 확장(큰 화면) 모드로 켜거나 끈다 — 창 자체도 함께 커지고 화면 중앙으로 옮겨진다. */
-export async function setWidgetExpanded(expanded) {
-  if (!inDesktopShell()) return;
-  try {
-    await invoke('set_widget_expanded', { expanded });
-  } catch {}
+// 「캘린더 크게 보기」 창은 위젯과 **별개의 창**이다. 위젯을 덮거나 대신하지 않는다.
+//
+// 열림 상태를 여기서 따로 기억하지 않는다. 사용자가 창 X 로 닫으면 그 기억이 어긋나
+// 「열려 있다고 생각하는데 실제로는 닫힌」 상태가 된다. 위젯 단추는 언제 눌러도
+// «열고 앞으로 꺼내기»만 하고, 닫는 일은 캘린더 창의 접기 단추가 맡는다.
+
+/** 브라우저 미리보기에서 window.open 으로 띄운 창. 설치본에서는 쓰지 않는다. */
+let calendarPopup = null;
+
+export async function openCalendarWindow() {
+  if (inDesktopShell()) {
+    try {
+      await invoke('set_calendar_open', { open: true });
+    } catch {}
+    return;
+  }
+  // 브라우저 미리보기: 새 탭/창으로 띄운다.
+  if (calendarPopup && !calendarPopup.closed) {
+    calendarPopup.focus();
+    return;
+  }
+  calendarPopup = window.open('/calendar.html', 'cool-calendar', 'width=980,height=720');
+}
+
+export async function closeCalendarWindow() {
+  if (inDesktopShell()) {
+    try {
+      await invoke('set_calendar_open', { open: false });
+    } catch {}
+    return;
+  }
+  if (calendarPopup && !calendarPopup.closed) {
+    calendarPopup.close();
+    calendarPopup = null;
+  } else {
+    // 캘린더 창이 스스로 접기를 누른 경우 — 자기 자신을 닫는다.
+    window.close();
+  }
 }
 
 /**

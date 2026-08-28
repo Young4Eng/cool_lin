@@ -10,6 +10,10 @@ use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 const WIDGET: &str = "widget";
+/// 「캘린더 크게 보기」 창. 위젯과 별개로 뜬다.
+const CALENDAR: &str = "calendar";
+/// 캘린더 창 크기. 모니터보다 크면 화면에 맞춰 줄어든다.
+const CALENDAR_SIZE: (f64, f64) = (980.0, 720.0);
 
 /// `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 에 들어가는 이름.
 /// autostart 플러그인이 `productName` 으로 쓰므로 tauri.conf.json 과 같아야 한다.
@@ -106,45 +110,42 @@ fn refresh_autostart_path(app: &AppHandle) {
     let _ = mgr.enable();
 }
 
-/// 위젯의 기본(작은) 크기. tauri.conf.json 의 windows[0].width/height 와 같아야 한다.
-const NORMAL_SIZE: (f64, f64) = (380.0, 660.0);
-/// 캘린더를 크게 펼칠 때 크기. 모니터보다 크면 아래에서 화면 크기에 맞춰 줄어든다.
-const EXPANDED_SIZE: (f64, f64) = (900.0, 680.0);
-
-/// 캘린더를 접었다 펼쳤다 할 때 창 자체도 함께 커지고 작아진다.
+/// 「캘린더 크게 보기」 창을 열거나 닫는다.
 ///
-/// 펼친 상태는 화면 중앙에 둔다 — 위젯의 원래 자리(오른쪽 위 구석)에 그대로 두면 커진
-/// 창이 화면 밖으로 밀려난다. 접으면 `place_widget` 과 같은 방식으로 다시 오른쪽 위로
-/// 돌아간다.
+/// **위젯 창은 건드리지 않는다.** 예전에는 위젯 창 자체를 크게 늘려 캘린더를 그렸는데,
+/// 그러면 캘린더를 보는 동안 위젯이 사라진다 — 「항상 떠 있는 일정판」이라는 위젯의
+/// 존재 이유가 없어진다. 이제 캘린더는 별도 창(`calendar`)이고 둘은 나란히 뜬다.
+///
+/// 닫을 때 창을 없애지 않고 숨기기만 한다. 다시 열 때 웹뷰를 새로 만들 필요가 없고,
+/// 보고 있던 달(月)도 그대로 남는다.
 #[tauri::command]
-fn set_widget_expanded(app: AppHandle, expanded: bool) {
-    let Some(win) = app.get_webview_window(WIDGET) else {
+fn set_calendar_open(app: AppHandle, open: bool) {
+    let Some(win) = app.get_webview_window(CALENDAR) else {
         return;
     };
-    let Ok(Some(monitor)) = win.primary_monitor() else {
-        return;
-    };
-
-    let area = monitor.size();
-    let origin = monitor.position();
-    let scale = monitor.scale_factor();
-
-    let (raw_w, raw_h) = if expanded { EXPANDED_SIZE } else { NORMAL_SIZE };
-    let max_w = (area.width as f64 / scale) - 40.0;
-    let max_h = (area.height as f64 / scale) - 80.0;
-    let w = raw_w.min(max_w).max(320.0);
-    let h = raw_h.min(max_h).max(460.0);
-    let _ = win.set_size(LogicalSize::new(w, h));
-
-    if expanded {
-        let Ok(size) = win.outer_size() else {
-            return;
-        };
-        let x = origin.x + (area.width as i32 - size.width as i32) / 2;
-        let y = origin.y + (area.height as i32 - size.height as i32) / 2;
-        let _ = win.set_position(PhysicalPosition::new(x.max(origin.x), y.max(origin.y)));
+    if open {
+        // 처음 열 때는 화면 가운데에 놓는다. 위젯(오른쪽 위)과 겹치지 않는다.
+        if let Ok(Some(monitor)) = win.primary_monitor() {
+            let area = monitor.size();
+            let origin = monitor.position();
+            let scale = monitor.scale_factor();
+            let max_w = (area.width as f64 / scale) - 40.0;
+            let max_h = (area.height as f64 / scale) - 80.0;
+            let _ = win.set_size(LogicalSize::new(
+                CALENDAR_SIZE.0.min(max_w).max(360.0),
+                CALENDAR_SIZE.1.min(max_h).max(420.0),
+            ));
+            if let Ok(size) = win.outer_size() {
+                let x = origin.x + (area.width as i32 - size.width as i32) / 2;
+                let y = origin.y + (area.height as i32 - size.height as i32) / 2;
+                let _ = win.set_position(PhysicalPosition::new(x.max(origin.x), y.max(origin.y)));
+            }
+        }
+        let _ = win.show();
+        let _ = win.unminimize();
+        let _ = win.set_focus();
     } else {
-        place_widget(&app);
+        let _ = win.hide();
     }
 }
 
@@ -327,13 +328,26 @@ fn main() {
             autostart_status,
             autostart_set,
             set_widget_visible,
-            set_widget_expanded,
+            set_calendar_open,
             read_latest_export,
             run_messenger_download
         ])
         .setup(|app| {
             place_widget(app.handle());
             refresh_autostart_path(app.handle());
+
+            // 캘린더 창의 X 는 «없애기»가 아니라 «접기»다. 정말 닫아 버리면 다시 열 때
+            // 웹뷰를 새로 만들어야 하고, 무엇보다 위젯만 남아야 할 자리에서 창이
+            // 영영 사라져 손잡이를 눌러도 아무 일도 일어나지 않게 된다.
+            if let Some(calendar) = app.get_webview_window(CALENDAR) {
+                let win = calendar.clone();
+                calendar.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = win.hide();
+                    }
+                });
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

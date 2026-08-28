@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarDays, CheckSquare, ChevronLeft, ChevronRight, ClipboardCheck, Download, Power } from 'lucide-react';
+import { CalendarDays, CheckSquare, ChevronRight, ClipboardCheck, Download, Power } from 'lucide-react';
 import MiniCalendar from '../scheduleWidget/MiniCalendar';
-import BigCalendar from '../scheduleWidget/BigCalendar';
 import CoolMessengerIngestBar from '../scheduleWidget/CoolMessengerIngestBar';
 import EventEditorModal from '../scheduleWidget/EventEditorModal';
 import EventList from '../scheduleWidget/EventList';
@@ -13,7 +12,7 @@ import {
 } from '../../services/storageService';
 import { subscribeAiEventAdded } from '../../utils/widgetSync';
 import { ingestOnce } from '../../services/widgetIngest';
-import { ensureAutostartOnFirstRun, inDesktopShell, setAutostart, setWidgetExpanded } from '../../services/desktopShell';
+import { ensureAutostartOnFirstRun, inDesktopShell, setAutostart, openCalendarWindow } from '../../services/desktopShell';
 import { withStarToggled, withPinOrder } from '../../utils/listOrdering';
 
 // 바탕화면 일정 위젯 — 설치본에서는 이 창 하나만 뜬다.
@@ -37,7 +36,6 @@ export default function DesktopCalendarWidget() {
   const [sourceEvent, setSourceEvent] = useState(null);
   const [autostart, setAutostartState] = useState(false);
   const [showIngest, setShowIngest] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [addDate, setAddDate] = useState(null);
 
   const [ingest, setIngest] = useState({ state: 'idle', message: '' });
@@ -145,14 +143,8 @@ export default function DesktopCalendarWidget() {
     });
   }, []);
 
-  // 캘린더를 확장(큰 화면)하면 창 자체도 함께 커진다 — 접으면 원래 자리로 돌아간다.
-  const toggleExpanded = useCallback(() => {
-    setExpanded((prev) => {
-      const next = !prev;
-      setWidgetExpanded(next);
-      return next;
-    });
-  }, []);
+  // 캘린더는 «따로 열리는 창»이다. 위젯은 그대로 떠 있는다 — 접기는 그 창이 맡는다.
+  const openCalendar = useCallback(() => openCalendarWindow(), []);
 
   // 별표(중요 표시) — 일정·할 일 둘 다 같은 방식으로 맨 위에 고정한다.
   const toggleStar = useCallback((kind, id) => {
@@ -205,17 +197,17 @@ export default function DesktopCalendarWidget() {
     { id: 'todo', label: '할 일', icon: CheckSquare, count: openTodos },
   ];
 
-  // 왼쪽 가장자리의 작은 손잡이 — 눌러서 캘린더를 크게 펼치거나 다시 접는다.
-  // 접힌 상태·펼친 상태 어디서나 같은 자리에 있다.
+  // 왼쪽 가장자리의 작은 손잡이 — 캘린더를 별도 창으로 크게 연다.
+  // 위젯은 그대로 남는다. 닫기는 그 창의 「접기」가 맡는다.
   const expandHandle = (
     <button
       type="button"
-      onClick={toggleExpanded}
-      title={expanded ? '캘린더 작게 보기' : '캘린더 크게 보기'}
-      aria-label={expanded ? '캘린더 작게 보기' : '캘린더 크게 보기'}
+      onClick={openCalendar}
+      title="캘린더 크게 보기 (새 창으로 열기)"
+      aria-label="캘린더 크게 보기"
       className="absolute left-0 top-1/2 z-30 flex h-9 w-3 -translate-y-1/2 items-center justify-center rounded-r-md border border-l-0 border-[#E5E4E0] bg-white text-[#A8A29B] shadow-sm transition-colors hover:bg-[#F8F8F5] hover:text-[#3A322D]"
     >
-      {expanded ? <ChevronLeft size={10} /> : <ChevronRight size={10} />}
+      <ChevronRight size={10} />
     </button>
   );
 
@@ -230,25 +222,6 @@ export default function DesktopCalendarWidget() {
       initialDate={addDate ?? undefined}
     />
   );
-
-  if (expanded) {
-    return (
-      <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-white font-sans text-slate-900">
-        {expandHandle}
-        <BigCalendar
-          events={calendarEvents}
-          selectedDate={selectedDate}
-          onSelectDate={setSelectedDate}
-          onOpenSource={setSourceEvent}
-          onAddEvent={setAddDate}
-        />
-        {sourceEvent && (
-          <SourceMessageModal event={sourceEvent} onClose={() => setSourceEvent(null)} />
-        )}
-        {quickAddModal}
-      </div>
-    );
-  }
 
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-white font-sans text-slate-900">

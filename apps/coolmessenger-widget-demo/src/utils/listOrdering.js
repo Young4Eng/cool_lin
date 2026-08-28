@@ -6,12 +6,26 @@
 // 다른 종류의 항목 사이에 끼워 넣을 때도 두 이웃의 pinOrder 중간값만 계산하면
 // 된다 — 배열을 합치거나 전체를 다시 매길 필요가 없다.
 
+export function isDone(item) {
+  return !!item.completed;
+}
+
+// 완료한 것은 별표가 있든 없든 항상 맨 아래다. 별표는 «아직 할 일 중에 급한 것»을
+// 위로 올리는 장치라, 이미 끝난 일이 그 자리를 차지하면 뜻이 없어진다.
 export function isPinned(item) {
-  return !!item.starred;
+  return !!item.starred && !isDone(item);
 }
 
 export function pinnedSorted(items) {
   return items.filter(isPinned).sort((a, b) => (a.pinOrder ?? 0) - (b.pinOrder ?? 0));
+}
+
+/** 아직 안 끝난 것 / 끝난 것으로 가른다. 끝난 것은 목록 맨 아래에 따로 모아 둔다. */
+export function splitByDone(items) {
+  return {
+    open: items.filter((it) => !isDone(it)),
+    done: items.filter(isDone),
+  };
 }
 
 /** 두 이웃 pinOrder 사이(또는 맨 위/맨 아래) 새 값을 고른다. */

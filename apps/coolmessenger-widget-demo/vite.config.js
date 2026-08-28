@@ -18,6 +18,8 @@ export default defineConfig({
         // via window.open() so it can live outside the main app window,
         // simulating a widget pinned on the teacher's PC.
         widget: resolve(__dirname, 'widget.html'),
+        // 「캘린더 크게 보기」 — 위젯과 나란히 뜨는 별도 창
+        calendar: resolve(__dirname, 'calendar.html'),
       },
     },
   },

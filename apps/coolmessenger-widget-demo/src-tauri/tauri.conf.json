@@ -22,6 +22,18 @@
         "resizable": true,
         "alwaysOnTop": true,
         "center": false
+      },
+      {
+        "label": "calendar",
+        "title": "쿨린 캘린더 - 크게 보기",
+        "url": "calendar.html",
+        "width": 980,
+        "height": 720,
+        "minWidth": 560,
+        "minHeight": 420,
+        "resizable": true,
+        "visible": false,
+        "center": true
       }
     ],
     "security": {

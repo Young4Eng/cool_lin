@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp, Star, Check, GripVertical } from 'lucide-react';
 import { eventSummary } from '../../utils/summarizeMessage';
-import { pinnedSorted, pinOrderBetween } from '../../utils/listOrdering';
+import { pinnedSorted, pinOrderBetween, splitByDone } from '../../utils/listOrdering';
+import { useDragReorder } from '../../utils/useDragReorder';
 
 // 카드에는 «무엇을 · 언제 · 무슨 내용» 셋만 둔다.
 //
@@ -43,13 +44,13 @@ function DDayLabel({ days }) {
 function ItemCard({
   item,
   mode,
-  draggable,
   onDeleteEvent,
   onOpenSource,
   onApproveEvent,
   onToggleTodo,
   onToggleStar,
-  dragHandlers,
+  onHandlePointerDown,
+  isDragging,
   isDragOver,
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -60,17 +61,27 @@ function ItemCard({
 
   return (
     <article
-      draggable={draggable}
-      {...dragHandlers}
+      data-reorder-id={item.id}
       onDoubleClick={() => !isTodo && onOpenSource?.(item)}
       title={!isTodo && item.source ? '더블클릭 — 쪽지 원문 보기' : undefined}
       className={`group rounded-lg border bg-white px-3 py-2.5 transition-colors ${
-        isDragOver ? 'border-[#1D1715] border-dashed' : days === 0 ? 'border-[#D6D3CC]' : 'border-[#E5E4E0]'
+        isDragging ? 'opacity-50' : ''
+      } ${
+        isDragOver
+          ? 'border-[#1D1715] border-dashed'
+          : days === 0 && !item.completed
+            ? 'border-[#D6D3CC]'
+            : 'border-[#E5E4E0]'
       } ${onOpenSource && !isTodo ? 'hover:border-[#C9C5BD] hover:bg-[#FCFCFA]' : ''}`}
     >
       <div className="flex items-start gap-2">
-        {draggable && (
-          <span className="mt-0.5 shrink-0 cursor-grab text-[#C9C5BD] active:cursor-grabbing" title="끌어서 순서 바꾸기">
+        {onHandlePointerDown && (
+          <span
+            onPointerDown={onHandlePointerDown(item.id)}
+            style={{ touchAction: 'none' }}
+            className="mt-0.5 shrink-0 cursor-grab text-[#C9C5BD] hover:text-[#5B5550] active:cursor-grabbing"
+            title="끌어서 순서 바꾸기"
+          >
             <GripVertical size={13} />
           </span>
         )}
@@ -97,7 +108,7 @@ function ItemCard({
           {item.title}
         </h3>
 
-        {onToggleStar && (
+        {onToggleStar && !item.completed && (
           <button
             type="button"
             onClick={() => onToggleStar(item.kind, item.id)}
@@ -214,8 +225,7 @@ export default function EventList({
   mode = 'calendar', // 'calendar' | 'review'
 }) {
   const [showPast, setShowPast] = useState(false);
-  const [draggingId, setDraggingId] = useState(null);
-  const [overId, setOverId] = useState(null);
+  const [showDone, setShowDone] = useState(false);
 
   // 할 일도 섞어서 하나의 흐름으로 보여 준다 — mode="calendar" 이고 todos 가 왔을 때만.
   const combined = useMemo(() => {
@@ -237,59 +247,42 @@ export default function EventList({
 
   const canDrag = mode === 'calendar' && !!onReorder;
 
-  const handleDrop = (targetId) => {
-    if (!draggingId || draggingId === targetId) return;
-    const pinned = pinnedSorted(combined);
-    const withoutDragged = pinned.filter((it) => it.id !== draggingId);
-    const targetIdx = withoutDragged.findIndex((it) => it.id === targetId);
-    const before = targetIdx > 0 ? withoutDragged[targetIdx - 1] : null;
-    const after = targetIdx >= 0 ? withoutDragged[targetIdx] : null;
-    const order = pinOrderBetween(before ? before.pinOrder : null, after ? after.pinOrder : null);
-    const dragged = combined.find((it) => it.id === draggingId);
-    onReorder(dragged.kind, draggingId, order);
-    setDraggingId(null);
-    setOverId(null);
-  };
+  const commitDrag = useCallback(
+    (id, target) => {
+      const dragged = combined.find((it) => it.id === id);
+      if (!dragged) return;
+      const pinned = pinnedSorted(combined).filter((it) => it.id !== id);
 
-  const handleDropAtPinnedEnd = () => {
-    if (!draggingId) return;
-    const pinned = pinnedSorted(combined).filter((it) => it.id !== draggingId);
-    const last = pinned[pinned.length - 1];
-    const order = pinOrderBetween(last ? last.pinOrder : null, null);
-    const dragged = combined.find((it) => it.id === draggingId);
-    onReorder(dragged.kind, draggingId, order);
-    setDraggingId(null);
-    setOverId(null);
-  };
+      let order;
+      if (target.toPinnedEnd) {
+        const last = pinned[pinned.length - 1];
+        order = pinOrderBetween(last ? last.pinOrder : null, null);
+      } else {
+        const idx = pinned.findIndex((it) => it.id === target.targetId);
+        if (idx === -1) {
+          // 고정 영역 밖의 카드 위에 놓았다 — 고정 목록 맨 끝으로 보낸다.
+          const last = pinned[pinned.length - 1];
+          order = pinOrderBetween(last ? last.pinOrder : null, null);
+        } else {
+          const before = idx > 0 ? pinned[idx - 1] : null;
+          order = pinOrderBetween(before ? before.pinOrder : null, pinned[idx].pinOrder);
+        }
+      }
+      onReorder(dragged.kind, id, order);
+    },
+    [combined, onReorder],
+  );
 
-  const dragHandlersFor = (id) =>
-    !canDrag
-      ? {}
-      : {
-          onDragStart: () => setDraggingId(id),
-          onDragEnd: () => {
-            setDraggingId(null);
-            setOverId(null);
-          },
-          onDragOver: (e) => {
-            e.preventDefault();
-            setOverId(id);
-          },
-          onDrop: (e) => {
-            e.preventDefault();
-            e.stopPropagation(); // 이 줄에 놓았으면 부모(고정 영역)의 「맨 끝에 놓기」로 다시 덮이면 안 된다
-            handleDrop(id);
-          },
-        };
+  const { draggingId, overId, onHandlePointerDown } = useDragReorder(commitDrag);
 
   const card = (item) => (
     <ItemCard
       key={item.id}
       item={item}
       mode={mode}
-      draggable={canDrag}
-      dragHandlers={dragHandlersFor(item.id)}
-      isDragOver={overId === item.id && draggingId !== item.id}
+      onHandlePointerDown={canDrag && !item.completed ? onHandlePointerDown : null}
+      isDragging={draggingId === item.id}
+      isDragOver={overId === item.id}
       onDeleteEvent={onDeleteEvent}
       onOpenSource={onOpenSource}
       onApproveEvent={onApproveEvent}
@@ -299,14 +292,9 @@ export default function EventList({
   );
 
   const pinnedZone = (pinned) => {
-    if (!canDrag && pinned.length === 0) return null;
     if (pinned.length === 0 && !draggingId) return null;
     return (
-      <div
-        onDragOver={canDrag ? (e) => e.preventDefault() : undefined}
-        onDrop={canDrag ? (e) => { e.preventDefault(); handleDropAtPinnedEnd(); } : undefined}
-        className="mb-1.5 space-y-1.5"
-      >
+      <div data-reorder-zone="pinned" className="mb-1.5 space-y-1.5">
         <div className="flex items-center gap-1 px-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600">
           <Star size={10} className="fill-amber-400 text-amber-400" /> 중요 표시
         </div>
@@ -321,28 +309,50 @@ export default function EventList({
     );
   };
 
+  // 완료한 것은 어느 목록에서든 맨 아래로 내려 접어 둔다.
+  const doneGroup = (done) =>
+    done.length > 0 && (
+      <>
+        <button
+          type="button"
+          onClick={() => setShowDone(!showDone)}
+          className="flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-[10.5px] text-[#A8A29B] hover:bg-[#F8F8F5] hover:text-[#5B5550]"
+        >
+          {showDone ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+          완료 {done.length}건
+        </button>
+        {showDone && done.map(card)}
+      </>
+    );
+
+  const byTime = (a, b) =>
+    `${a.date} ${a.time || '00:00'}`.localeCompare(`${b.date} ${b.time || '00:00'}`);
+
   // 날짜를 고른 경우에는 그 날 것만, 지났든 아니든 그대로 보여 준다.
   if (selectedDate) {
-    const forDate = combined
-      .filter((it) => it.date === selectedDate)
-      .sort((a, b) => `${a.date} ${a.time || '00:00'}`.localeCompare(`${b.date} ${b.time || '00:00'}`));
-    const pinned = pinnedSorted(forDate);
+    const forDate = combined.filter((it) => it.date === selectedDate).sort(byTime);
+    const { open, done } = splitByDone(forDate);
+    const pinned = pinnedSorted(open);
     const pinnedIds = new Set(pinned.map((it) => it.id));
-    const rest = forDate.filter((it) => !pinnedIds.has(it.id));
+    const rest = open.filter((it) => !pinnedIds.has(it.id));
     return (
       <Scroller>
         {pinnedZone(pinned)}
-        {rest.length === 0 && pinned.length === 0 ? <Empty>이 날에는 일정이 없습니다.</Empty> : rest.map(card)}
+        {rest.length === 0 && pinned.length === 0 && done.length === 0 ? (
+          <Empty>이 날에는 일정이 없습니다.</Empty>
+        ) : (
+          rest.map(card)
+        )}
+        {doneGroup(done)}
       </Scroller>
     );
   }
 
-  const sorted = [...combined].sort((a, b) =>
-    `${a.date} ${a.time || '00:00'}`.localeCompare(`${b.date} ${b.time || '00:00'}`),
-  );
-  const pinned = pinnedSorted(sorted);
+  const sorted = [...combined].sort(byTime);
+  const { open, done } = splitByDone(sorted);
+  const pinned = pinnedSorted(open);
   const pinnedIds = new Set(pinned.map((it) => it.id));
-  const unpinned = sorted.filter((it) => !pinnedIds.has(it.id));
+  const unpinned = open.filter((it) => !pinnedIds.has(it.id));
 
   // 「다가오는 일정」이라고 써 놓고 지난 것을 맨 위에 두면 안 된다.
   // 흘깃 보는 화면이라 맨 위 두세 줄이 전부다. 지난 일정은 접어 둔다.
@@ -354,7 +364,7 @@ export default function EventList({
     else upcoming.push(it);
   }
 
-  if (upcoming.length === 0 && past.length === 0 && pinned.length === 0) {
+  if (upcoming.length === 0 && past.length === 0 && pinned.length === 0 && done.length === 0) {
     return (
       <Scroller>
         <Empty>{mode === 'review' ? '검토할 일정이 없습니다.' : '표시할 일정이 없습니다.'}</Empty>
@@ -368,7 +378,7 @@ export default function EventList({
 
       {upcoming.length > 0
         ? upcoming.map(card)
-        : pinned.length === 0 && <Empty>다가오는 일정이 없습니다.</Empty>}
+        : pinned.length === 0 && past.length === 0 && <Empty>다가오는 일정이 없습니다.</Empty>}
 
       {past.length > 0 && (
         <>
@@ -383,6 +393,8 @@ export default function EventList({
           {showPast && past.slice().reverse().map(card)}
         </>
       )}
+
+      {doneGroup(done)}
     </Scroller>
   );
 }

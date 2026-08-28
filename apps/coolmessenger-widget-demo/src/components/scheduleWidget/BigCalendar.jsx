@@ -24,7 +24,15 @@ function dotColor(event) {
   return CATEGORY_DOT[event.category] || '#8E8880';
 }
 
-export default function BigCalendar({ events = [], selectedDate, onSelectDate, onOpenSource, onAddEvent }) {
+export default function BigCalendar({
+  events = [],
+  todos = [],
+  selectedDate,
+  onSelectDate,
+  onOpenSource,
+  onAddEvent,
+  onToggleTodo,
+}) {
   const today = useMemo(() => new Date(), []);
   const todayStr = iso(today.getFullYear(), today.getMonth() + 1, today.getDate());
   const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() + 1 });
@@ -62,15 +70,30 @@ export default function BigCalendar({ events = [], selectedDate, onSelectDate, o
     return out;
   }, [view]);
 
+  // 일정과 할 일을 한 칸 안에 함께 놓는다. 완료한 것은 그 날 칸에서도 맨 아래다.
   const byDate = useMemo(() => {
+    const all = [
+      ...events.map((e) => ({ ...e, kind: 'event' })),
+      ...todos.map((t) => ({
+        kind: 'todo',
+        id: t.id,
+        title: t.text,
+        date: t.dueDate,
+        completed: t.completed,
+        category: '업무',
+      })),
+    ];
     const map = new Map();
-    for (const e of events) {
-      const list = map.get(e.date) ?? [];
-      list.push(e);
-      map.set(e.date, list);
+    for (const item of all) {
+      const list = map.get(item.date) ?? [];
+      list.push(item);
+      map.set(item.date, list);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => Number(!!a.completed) - Number(!!b.completed));
     }
     return map;
-  }, [events]);
+  }, [events, todos]);
 
   const rows = cells.length / 7;
 
@@ -177,14 +200,19 @@ export default function BigCalendar({ events = [], selectedDate, onSelectDate, o
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onOpenSource?.(ev);
+                      if (ev.kind === 'todo') onToggleTodo?.(ev.id);
+                      else onOpenSource?.(ev);
                     }}
-                    title={ev.title}
-                    className="flex items-center gap-1 truncate rounded bg-[#F0EFEB] px-1 py-[1.5px] text-left text-[10px] leading-tight text-[#3A322D] hover:bg-[#E5E4E0]"
+                    title={ev.kind === 'todo' ? `${ev.title} — 눌러서 완료 표시` : ev.title}
+                    className={`flex items-center gap-1 truncate rounded px-1 py-[1.5px] text-left text-[10px] leading-tight hover:bg-[#E5E4E0] ${
+                      ev.completed
+                        ? 'bg-[#F8F8F5] text-[#A8A29B] line-through'
+                        : 'bg-[#F0EFEB] text-[#3A322D]'
+                    }`}
                   >
                     <span
                       className="h-[5px] w-[5px] shrink-0 rounded-full"
-                      style={{ backgroundColor: dotColor(ev) }}
+                      style={{ backgroundColor: ev.completed ? '#C9C5BD' : dotColor(ev) }}
                     />
                     <span className="truncate">{ev.title}</span>
                   </button>
