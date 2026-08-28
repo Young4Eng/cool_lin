@@ -89,9 +89,13 @@ export function eventsFromExport(text, options = {}) {
         attachment: row['첨부파일'] ?? '',
       };
 
+      // 지난 날짜도 뽑는다. **검토함에만 올라간다** — 자동 등록은 엔진의 안전 조건이
+      // 「이미 지난 날짜」를 막기 때문이다(policy/autoRegister.ts). 예전에는 여기서
+      // 아예 버려서, 어제 마감이던 제출물이 검토함에도 뜨지 않았다. 아직 안 낸 사람에게
+      // 그게 제일 필요한 항목인데도. 얼마나 옛것까지 볼지는 가져올 기간으로 정한다.
       const candidates = extractFromMessage(
         { subject: source.subject, body, sentAt },
-        { role, now, includePast: false },
+        { role, now, includePast: true },
       );
 
       for (const candidate of candidates) {
