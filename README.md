@@ -83,10 +83,19 @@ npm run build
 
 이 기능은 이미 켜 있는 쿨메신저(모의) 창을 조작한다. 메신저를 새로 켜지 않고, 메인 창이든 메시지 관리함이 이미 열려 있든 어제~오늘 텍스트를 xls로 받는다.
 
-Windows에서 Python 의존성을 설치한다:
+Windows에서 Python 의존성을 설치한다. **`pip` 가 아니라 `py -3` 로 설치한다.**
 
 ```bash
-pip install -r server/python/requirements.txt
+py -3 -m pip install -r server/python/requirements.txt
+```
+
+서버는 이 기능을 `py -3` 로 띄운다 (`server/src/index.ts` 의 `pythonCmd`). Python 이 여러 벌
+깔려 있는 PC에서는 `pip` 가 가리키는 파이썬과 `py -3` 가 고르는 파이썬이 서로 다르다.
+그냥 `pip install` 로 깔면 설치는 성공했는데 버튼을 눌렀을 때
+`No module named 'cv2'` 가 뜬다. 어디에 깔렸는지는 이렇게 확인한다:
+
+```bash
+py -3 -c "import cv2, numpy, PIL; print('ok')"
 ```
 
 그다음 앱을 실행한다:

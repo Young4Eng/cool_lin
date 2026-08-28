@@ -355,6 +355,26 @@ def modal_visible(hwnd: int) -> bool:
     return m is not None
 
 
+def wait_modal(hwnd: int, timeout: float, gone: bool = False) -> bool:
+    """다운로드 창이 뜨기를(또는 `gone=True` 면 닫히기를) 기다린다.
+
+    `modal_visible` 은 화면을 캡처해 템플릿을 맞춰 보므로 싸지 않다. 한 바퀴에 한 번만
+    부르도록 여기서 묶는다. 돌려주는 값은 «기다리던 상태가 되지 않았는가» 가 아니라
+    `gone=False` 면 «떴는가», `gone=True` 면 «아직 안 닫혔는가» 다.
+    """
+    deadline = time.time() + timeout
+    while True:
+        visible = modal_visible(hwnd)
+        if gone:
+            if not visible:
+                return False
+        elif visible:
+            return True
+        if time.time() >= deadline:
+            return gone
+        time.sleep(0.2)
+
+
 def type_spin(digits: str) -> None:
     tap(VK_HOME)
     time.sleep(0.03)
@@ -396,18 +416,21 @@ def fill_dates_and_download(hwnd: int, log: Callable[[str], None]) -> None:
     yest = today - timedelta(days=1)
     yest_s = f"{yest.year:04d}{yest.month:02d}{yest.day:02d}"
     l, top, r, btm = _rect(hwnd)
-    w, h = r - l, btm - top
     tpls = load_templates("folderchg")
     img, sl, st = screenshot_region(l, top, r, btm)
     bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     fc = match_in(bgr, tpls, 0.15, 0.9, 0.1, 0.95, thresh=0.52) if tpls else None
-    if fc:
-        # 폴더변경 왼쪽 위 = 시작 날짜 칸 (달력 아이콘이 아니라 숫자 쪽)
-        sx, sy = sl + fc[0] - 280, st + fc[1] - 58
-        log(f"시작 날짜 클릭 {sx},{sy}")
-    else:
-        sx, sy = l + int(w * 0.32), top + int(h * 0.34)
-        log("폴더변경 없음, 비율로 시작 날짜 클릭")
+    if not fc:
+        # 예전에는 여기서 창 비율로 좌표를 찍었다. 그런데 다운로드 창이 실제로는 안 떠
+        # 있을 때 엉뚱한 곳을 눌러 놓고 그 위에 날짜를 타이핑해 버렸다. 기간이 조용히
+        # 망가진 채로 «성공»한 파일이 나오는 것이 가장 나쁜 결과다 (기술계획서 8.4).
+        raise RuntimeError(
+            "다운로드 창의 «폴더변경»을 찾지 못해 시작 날짜 칸 위치를 알 수 없습니다. "
+            "쿨메신저가 다른 창에 가려져 있지 않은지 확인해 주세요."
+        )
+    # 폴더변경 왼쪽 위 = 시작 날짜 칸 (달력 아이콘이 아니라 숫자 쪽)
+    sx, sy = sl + fc[0] - 280, st + fc[1] - 58
+    log(f"시작 날짜 클릭 {sx},{sy}")
     click(int(sx), int(sy))
     time.sleep(0.18)
     tap(VK_HOME)
@@ -418,43 +441,63 @@ def fill_dates_and_download(hwnd: int, log: Callable[[str], None]) -> None:
     click_download_label(hwnd, log)
 
 
-def dismiss_saved_box() -> None:
-    for _ in range(25):
+def dismiss_saved_box(timeout: float = 3.0) -> bool:
+    """저장 확인 창("저장했습니다")을 닫는다. 닫았으면 True.
+
+    이 창은 앱 안의 모달이 아니라 별도 네이티브 창이라 제목으로 찾을 수 있다.
+    남겨 두면 다음 실행이 이 창을 상대로 클릭하게 되므로 시작할 때도 한 번 훑는다.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
         for hwnd, title, _rc in list_windows():
             if title == "메시지 다운로드":
                 force_foreground(hwnd)
                 tap(VK_RETURN)
                 time.sleep(0.2)
-                return
+                return True
         time.sleep(0.12)
+    return False
 
 
 def run(progress: Callable[[str], None] | None = None) -> dict:
     log = progress or (lambda _s: None)
     started = time.time()
+
+    # 직전 실행이 남긴 저장 확인 창을 먼저 치운다. 남아 있으면 이 창이 앞에 서서
+    # 아래 클릭이 전부 엉뚱한 곳으로 간다 — 연속 실행이 실패하던 원인이다.
+    if dismiss_saved_box(0.6):
+        log("직전 실행의 저장 확인 창을 닫음")
+
     hwnd, title = open_inbox_if_needed(log)
-    if modal_visible(hwnd):
+
+    # 다운로드 창이 «확인될 때까지» 연다. 확인되지 않은 채로 진행하면 좌표를 찍게 되고,
+    # 그러면 기간이 조용히 틀어진 파일이 나온다.
+    if wait_modal(hwnd, 0.0):
         log("다운로드 창이 이미 열려 있음")
     else:
-        click_template(
-            hwnd,
-            "dl",
-            log,
-            "다운로드 아이콘",
-            placements=[
-                (40, 30, 1600, 900),
-                (-280, 30, 1700, 900),
-                (-520, 30, 1900, 900),
-            ],
-            top_frac=0.28,
-        )
-        log("다운로드 창 대기")
-        for _ in range(15):
-            if modal_visible(hwnd):
+        for attempt in range(1, 4):
+            click_template(
+                hwnd,
+                "dl",
+                log,
+                "다운로드 아이콘",
+                placements=[
+                    (40, 30, 1600, 900),
+                    (-280, 30, 1700, 900),
+                    (-520, 30, 1900, 900),
+                ],
+                top_frac=0.28,
+            )
+            if wait_modal(hwnd, 3.0):
+                log(f"다운로드 창 열림 ({attempt}번째 시도)")
                 break
-            time.sleep(0.2)
+            log(f"다운로드 창이 뜨지 않음 ({attempt}/3)")
         else:
-            log("다운로드 창 확인 실패, 그래도 진행")
+            raise RuntimeError(
+                "다운로드 창을 열지 못했습니다. 쿨메신저가 다른 창에 가려져 있지 않은지 "
+                "확인한 뒤 다시 눌러 주세요."
+            )
+
     fill_dates_and_download(hwnd, log)
     log("저장 대기")
     dismiss_saved_box()
@@ -468,4 +511,9 @@ def run(progress: Callable[[str], None] | None = None) -> dict:
     if not path:
         raise RuntimeError("xls 파일이 만들어지지 않았습니다. 메신저가 앞에 나온 뒤 다운로드가 눌렸는지 확인해 주세요.")
     log(f"저장됨 {path.name}")
+
+    # 다음 실행이 깨끗한 화면에서 시작하도록 다운로드 창이 닫힌 것까지 확인한다.
+    if wait_modal(hwnd, 2.0, gone=True):
+        log("다운로드 창이 아직 닫히지 않음")
+
     return {"file": str(path), "started": started}
