@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Download, RefreshCw, Plus, Clock } from 'lucide-react';
 import { fetchFreshFromCoolMessenger, fetchFromLatestDownload } from '../../services/realIngestClient';
 import { parsePeriod, yesterdayAndToday } from '../../utils/ymd';
+import { markIngestStarted } from '../../utils/ingestGate';
 import {
   WEEKDAY_LABELS,
   loadAutoSettings,
@@ -17,7 +18,7 @@ import {
  * 교사가 누르는 일정 정리 막대: 기간 지정 수동 실행 + 시각 예약(확인 후 실행).
  * 실제 추출은 서버 POST /api/ingest → schedule-engine 한 경로만 탄다.
  */
-export default function CoolMessengerIngestBar({ onAddEvent, compact = false }) {
+export default function CoolMessengerIngestBar({ onAddEvent, onRun, compact = false }) {
   const defaults = yesterdayAndToday();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(null);
@@ -40,6 +41,9 @@ export default function CoolMessengerIngestBar({ onAddEvent, compact = false }) 
   }, []);
 
   const run = async (mode, period) => {
+    // 사람이 눌렀다는 사실을 남긴다. 이 표시가 있어야 위젯이 켜질 때 자동 갱신을 시작한다
+    // (utils/ingestGate.js) — 설치 직후에는 아무것도 저절로 들어오지 않아야 한다.
+    markIngestStarted();
     setBusy(true);
     setManualError(null);
     setNote({ kind: 'busy', text: '쪽지를 가져오고 로컬 AI로 일정을 정리하는 중… 최대 4분 정도 걸릴 수 있어요.' });
@@ -60,6 +64,10 @@ export default function CoolMessengerIngestBar({ onAddEvent, compact = false }) 
       setNote({ kind: 'err', text: e.message || '가져오기에 실패했습니다. 쿨메신저가 열려 있는지 확인해 주세요.' });
     } finally {
       setBusy(false);
+      // 자동 갱신은 **이번 가져오기가 끝난 뒤에** 시작한다. 시작할 때 켜면 메신저가
+      // 파일을 쓰는 중에 그 파일을 읽으러 가서, 가져오기는 성공했는데 화면에는
+      // 「아직 내려받은 쪽지가 없습니다」라는 빨간 문구가 남는다.
+      onRun?.();
     }
   };
 

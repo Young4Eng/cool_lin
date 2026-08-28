@@ -12,6 +12,7 @@ import {
 } from '../../services/storageService';
 import { subscribeAiEventAdded } from '../../utils/widgetSync';
 import { ingestOnce } from '../../services/widgetIngest';
+import { hasIngestStarted } from '../../utils/ingestGate';
 import {
   ensureAutostartOnFirstRun, inDesktopShell, setAutostart,
   openCalendarWindow, showDeadlineNotification,
@@ -44,6 +45,8 @@ export default function DesktopCalendarWidget() {
   const [autostart, setAutostartState] = useState(false);
   const [showIngest, setShowIngest] = useState(false);
   const [addDate, setAddDate] = useState(null);
+  // 사람이 「가져오기」를 한 번이라도 눌렀는가 (utils/ingestGate.js).
+  const [ingestStarted, setIngestStarted] = useState(hasIngestStarted);
 
   const [ingest, setIngest] = useState({ state: 'idle', message: '' });
   const runningRef = useRef(false);
@@ -85,7 +88,7 @@ export default function DesktopCalendarWidget() {
     saveStoredSchedule(next);
   }, []);
 
-  const runIngest = useCallback(async (mode) => {
+  const runIngest = useCallback(async (mode, { auto = false } = {}) => {
     if (runningRef.current) return;
     runningRef.current = true;
     setIngest({
@@ -111,7 +114,11 @@ export default function DesktopCalendarWidget() {
         message: parts.length > 0 ? parts.join(' · ') : '새로 추가할 일정이 없습니다',
       });
     } catch (err) {
-      setIngest({ state: 'error', message: (err && err.message) || '가져오지 못했습니다' });
+      // 저절로 돌린 갱신이 실패한 것은 알리지 않는다. 사람이 시킨 일이 아닌데 빨간
+      // 문구만 남으면 방금 한 가져오기가 잘못된 줄 안다. 사람이 누른 것만 말해 준다.
+      if (!auto) {
+        setIngest({ state: 'error', message: (err && err.message) || '가져오지 못했습니다' });
+      }
     } finally {
       runningRef.current = false;
     }
@@ -120,11 +127,16 @@ export default function DesktopCalendarWidget() {
   // 켜자마자 한 번 + 10분마다. 화면을 건드리지 않는 latest 만 자동으로 돈다.
   // 쿨메신저 창을 실제로 조작하는 fresh 는 사람이 누를 때만 한다 — 수업 중에 창이
   // 저절로 앞으로 튀어나오면 안 된다.
+  //
+  // 단, **사람이 「가져오기」를 한 번 누르기 전에는 돌지 않는다.** 그러지 않으면 새로
+  // 설치한 직후에도 바탕화면에 남아 있던 예전 내보내기 파일을 읽어, 아무것도 누르지
+  // 않았는데 일정·검토·할 일이 채워진 채로 시작한다.
   useEffect(() => {
-    runIngest('latest');
-    const t = setInterval(() => runIngest('latest'), AUTO_REFRESH_MS);
+    if (!ingestStarted) return undefined;
+    runIngest('latest', { auto: true });
+    const t = setInterval(() => runIngest('latest', { auto: true }), AUTO_REFRESH_MS);
     return () => clearInterval(t);
-  }, [runIngest]);
+  }, [runIngest, ingestStarted]);
 
   const persistTodos = (next) => {
     setTodos(next);
@@ -370,7 +382,11 @@ export default function DesktopCalendarWidget() {
                 평소에는 접어 둔다 — 흘깃 보는 위젯에서 맨 위 자리는 «오늘 무엇이 있나»
                 가 가져가야 한다. 「가져오기」를 눌러야 펼쳐진다. */}
             {showIngest && (
-            <CoolMessengerIngestBar compact onAddEvent={addEvent} />
+            <CoolMessengerIngestBar
+                compact
+                onAddEvent={addEvent}
+                onRun={() => setIngestStarted(true)}
+              />
             )}
             <MiniCalendar
               events={calendarEvents}
