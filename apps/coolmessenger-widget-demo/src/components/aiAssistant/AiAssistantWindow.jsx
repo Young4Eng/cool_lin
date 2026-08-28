@@ -101,6 +101,10 @@ export default function AiAssistantWindow({
       const detected = extractSchedulesFromMessage(msg);
       detected.forEach(event => {
         if (onAddEvent) {
+          event.sourceMessageId = msg.id;
+          // 발신자가 작성 시 "캘린더 연동"으로 표시해둔 쪽지는 엔진의 신뢰도
+          // 판단과 별개로 사람이 이미 한 번 보증한 것으로 보고 검토함을 건너뛴다.
+          if (msg.linkToCalendar) event.reviewed = true;
           onAddEvent(event);
           count++;
         }

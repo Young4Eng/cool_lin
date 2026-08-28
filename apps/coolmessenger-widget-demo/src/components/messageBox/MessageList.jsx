@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, Paperclip } from 'lucide-react';
+import { Star, Paperclip, AlarmClock } from 'lucide-react';
 import { SCHOOL_MEMBERS } from '../../data/initialData';
 
 export default function MessageList({
@@ -8,8 +8,20 @@ export default function MessageList({
   onSelectMessage,
   onToggleStar,
   searchQuery = '',
+  events = [],
 }) {
   const memberMap = Object.fromEntries(SCHOOL_MEMBERS.map(m => [m.id, m]));
+
+  // Earliest linked deadline per message, for the inline badge (item: "메신저에
+  // 마감 기한이 표시돼 보이게").
+  const deadlineByMessageId = {};
+  events.forEach(ev => {
+    if (!ev.sourceMessageId) return;
+    const existing = deadlineByMessageId[ev.sourceMessageId];
+    if (!existing || `${ev.date} ${ev.time}` < `${existing.date} ${existing.time}`) {
+      deadlineByMessageId[ev.sourceMessageId] = ev;
+    }
+  });
 
   const filteredMessages = messages.filter(m => {
     if (!searchQuery.trim()) return true;
@@ -39,6 +51,7 @@ export default function MessageList({
           const isSelected = msg.id === selectedMessageId;
           const sender = memberMap[msg.fromId];
           const senderLabel = sender ? `${sender.name}(${sender.department || sender.title})` : '교직원';
+          const deadline = deadlineByMessageId[msg.id];
 
           return (
             <div
@@ -72,11 +85,20 @@ export default function MessageList({
                 {senderLabel}
               </span>
 
-              {/* Subject */}
+              {/* Subject + deadline badge */}
               <div className="truncate pr-1">
                 <span className={`text-[11.5px] truncate ${isSelected ? 'text-white font-medium' : ''}`}>
                   {msg.subject}
                 </span>
+                {deadline && (
+                  <span
+                    className={`ml-1 inline-flex items-center gap-0.5 text-[9.5px] font-bold px-1 py-px rounded ${
+                      isSelected ? 'bg-white/25 text-white' : 'bg-rose-50 text-rose-600 border border-rose-200'
+                    }`}
+                  >
+                    <AlarmClock size={8} /> {deadline.date.slice(5).replace('-', '/')}
+                  </span>
+                )}
               </div>
 
               {/* Date */}

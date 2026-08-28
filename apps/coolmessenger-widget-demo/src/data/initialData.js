@@ -435,6 +435,28 @@ export const INITIAL_TODOS = [
   { id: 'todo-05', text: '3층 복도 점심시간 생활지도 (12:40)', dueDate: '2026-09-01', completed: false, priority: 'urgent', linkedMessageId: 'm-05' }
 ];
 
+// 자주 쓰는 멘트 (작성창 자동텍스트입력) — 예: 수업자료 전담교사가 매일 같은
+// 문구로 자료를 배부할 때 바로 꽂아 넣는 용도. G-ONE의 "AI 대화 초안"과 유사.
+export const INITIAL_QUICK_PHRASES = [
+  { id: 'qp-01', label: '수업자료 전달', text: '안녕하세요~ 오늘 수업 자료 전달드립니다. 확인 부탁드립니다 :)' },
+  { id: 'qp-02', label: '확인 요청', text: '안녕하세요 선생님, 내용 확인 부탁드리며 회신 주시면 감사하겠습니다.' },
+  { id: 'qp-03', label: '제출 안내', text: '안녕하세요 선생님, 첨부 서류 확인하시어 기한 내 제출 부탁드립니다. 감사합니다.' },
+];
+
+// 여러 명 실시간 채팅(그룹 채팅) 샘플
+export const INITIAL_GROUP_CHATS = {
+  'g-2hak-damim': {
+    id: 'g-2hak-damim',
+    name: '2학년 담임 단톡',
+    memberIds: ['p-seojun', 'p-jia', 'p-sehun', 'p-yuna-24', 'p-taemin', 'p-soyul'],
+    messages: [
+      { id: 'gc-1', senderId: 'p-jia', text: '선생님들 내일 2학년 담임 회의 몇 시였죠?', time: '오후 3:20' },
+      { id: 'gc-2', senderId: 'p-seojun', text: '내일 4시 2학년실입니다!', time: '오후 3:22', isMe: true },
+      { id: 'gc-3', senderId: 'p-sehun', text: '넵 확인했습니다~', time: '오후 3:23' },
+    ],
+  },
+};
+
 export const INITIAL_CHATS = {
   'p-eunji': [
     { id: 'c-1', senderId: 'p-eunji', text: '김서준 선생님, 2학년 3반 동의서 수합 잘 되고 계신가요?', time: '오후 4:40', isMe: false },

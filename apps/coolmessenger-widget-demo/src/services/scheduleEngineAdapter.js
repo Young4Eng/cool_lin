@@ -95,6 +95,9 @@ function toEvent(candidate) {
     autoRegisterBlockers: candidate.autoRegisterBlockers,
     keywords: candidate.keywords,
     sourceGroupId: candidate.sourceGroupId,
+    // description에도 "판단 근거: ..."로 접혀 들어가지만, 위젯의 "왜 이렇게
+    // 판단했나요?" 펼침 UI가 문장 목록을 따로 필요로 해서 배열째로도 넘긴다.
+    reasoning: candidate.reasoning,
   };
 }
 
