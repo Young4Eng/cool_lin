@@ -2,6 +2,10 @@
  * 파이프라인을 실제 파일에 돌려 일정 후보를 뽑는다.
  *
  *   npx tsx scripts/extract.ts [폴더] [--today=2026-08-28] [--window=14] [--json=out.json]
+ *                              [--level=분명한 일정까지|아주 확실한 것만]
+ *
+ * --level 은 자동 등록 기준 단계다 (기술계획서 7.6). 안전 조건은 단계와 무관하게 그대로이고
+ * 바뀌는 것은 신뢰도 문턱 하나뿐이다.
  *
  * --json 으로 저장한 파일은 위젯(역할 2)이 그대로 읽을 수 있는 계약 형태다.
  */
@@ -9,6 +13,11 @@ import { readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { runPipeline } from "../src/pipeline.js";
 import { civil } from "../src/dates/civil.js";
+import {
+  DEFAULT_AUTO_REGISTER_LEVEL,
+  isAutoRegisterLevel,
+  type AutoRegisterLevel,
+} from "../src/policy/autoRegister.js";
 import type { Candidate } from "../src/types.js";
 
 const args = process.argv.slice(2);
@@ -17,6 +26,16 @@ const flag = (name: string) => args.find((a) => a.startsWith(`--${name}=`))?.spl
 
 const dir = path.resolve(positional[0] ?? "../../coolexcel");
 const files = (await readdir(dir)).filter((f) => /\.xlsx?$/i.test(f)).map((f) => path.join(dir, f));
+
+const levelFlag = flag("level");
+let autoRegisterLevel: AutoRegisterLevel = DEFAULT_AUTO_REGISTER_LEVEL;
+if (levelFlag !== undefined) {
+  if (!isAutoRegisterLevel(levelFlag)) {
+    console.error(`--level 값이 «아주 확실한 것만» 또는 «분명한 일정까지» 가 아닙니다: ${levelFlag}`);
+    process.exit(1);
+  }
+  autoRegisterLevel = levelFlag;
+}
 
 const todayFlag = flag("today");
 const now = todayFlag
@@ -28,6 +47,7 @@ const result = await runPipeline(files, {
   windowDays: Number(flag("window") ?? 14),
   // 데모용 역할 태그. 실제 앱에서는 최초 실행 화면에서 사용자가 고른다.
   role: { homeroom: true, grades: [2], interests: ["연수", "평가"] },
+  autoRegisterLevel,
 });
 
 const s = result.stats;
@@ -41,7 +61,7 @@ console.log(`  민감정보로 격리    ${s.quarantined}`);
 console.log(`  실제 처리한 쪽지   ${s.messagesProcessed}`);
 console.log(`  일정 날짜가 지남   ${s.pastDate}`);
 console.log(`  후보 없음          ${s.noDate}`);
-console.log(`  ▶ 후보 ${s.candidates}건 (자동등록 가능 ${s.autoRegisterEligible}건)`);
+console.log(`  ▶ 후보 ${s.candidates}건 (자동등록 가능 ${s.autoRegisterEligible}건 · 기준 「${autoRegisterLevel}」)`);
 
 const byType = new Map<string, number>();
 const byBand = new Map<string, number>();

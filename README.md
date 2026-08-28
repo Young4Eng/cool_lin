@@ -40,6 +40,9 @@ docs/reference/coolmessenger-gentoo/  목업 메신저 "정답지" — CoolMesse
 ```
 
 - 규칙 전체: `packages/schedule-engine/RULES.md`
+- 자동 등록 기준 단계(`아주 확실한 것만` / `분명한 일정까지`)는 엔진 옵션 하나로 바꾼다:
+  `runPipeline(files, { autoRegisterLevel })` · `extractFromMessage(msg, { autoRegisterLevel })`.
+  안전 조건은 단계와 무관하게 그대로다 (기술계획서 7.6, 엔진 README 2장)
 - 위젯 연동: `apps/coolmessenger-widget-demo/ENGINE.md`
 - 서버 경로: `POST /api/ingest`, `POST /api/open-latest` 는 내려받기 결과에
   `candidates` 를 함께 돌려줍니다. 이미 가진 파일로 다시 뽑으려면 `POST /api/candidates {file}`.

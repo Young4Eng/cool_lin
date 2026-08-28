@@ -15,12 +15,18 @@ import { band, classifySentence, type UserRole } from "./classify/classify.js";
 import { diffDays, startOfDay, type Civil } from "./dates/civil.js";
 import { extractDates, type PeriodTable } from "./dates/resolve.js";
 import { parseSentAt } from "./dates/sentAt.js";
+import {
+  ambiguityFlagsFor,
+  DEFAULT_AUTO_REGISTER_LEVEL,
+  evaluateAutoRegister,
+  type AutoRegisterLevel,
+} from "./policy/autoRegister.js";
 import { normalizeBody } from "./text/normalize.js";
 import { splitQuote } from "./text/quote.js";
 import { detectSensitive } from "./text/sensitive.js";
 import { splitSentences } from "./text/sentences.js";
 import { buildTitle } from "./title.js";
-import type { AmbiguityFlag, Candidate } from "./types.js";
+import type { Candidate } from "./types.js";
 
 export interface BrowserMessage {
   /** 쪽지 제목 열. 없으면 빈 문자열 */
@@ -40,6 +46,8 @@ export interface BrowserExtractOptions {
   now?: Date | null;
   /** 지난 일정도 후보로 만들 것인가 */
   includePast?: boolean;
+  /** 자동 등록 기준 단계 (기술계획서 7.6). 기본값은 «분명한 일정까지» */
+  autoRegisterLevel?: AutoRegisterLevel;
 }
 
 /** HTML 쪽지를 평문으로 바꾼다. 태그를 실행하거나 렌더링하지 않는다. */
@@ -78,39 +86,6 @@ function asCivil(value: Date): Civil {
   );
 }
 
-/** 후보가 자동등록 안전 조건을 통과하는지 본다 (PRD 9장). */
-function autoRegisterBlockers(
-  candidate: Omit<Candidate, "autoRegisterEligible" | "autoRegisterBlockers">,
-  isOptional: boolean,
-  related: boolean,
-  now: Civil | null,
-  ruleUsed: string,
-): string[] {
-  const blockers: string[] = [];
-
-  const when = candidate.startAt ?? candidate.dueAt;
-  if (when === null) {
-    blockers.push("날짜가 없음");
-  } else if (now !== null) {
-    const at = new Date(when.length === 10 ? `${when}T00:00Z` : `${when}Z`);
-    if (diffDays(at, startOfDay(now)) < 0) blockers.push("이미 지난 날짜");
-  }
-
-  const official =
-    candidate.candidateType === "OFFICIAL_EVENT" ||
-    candidate.candidateType === "DEADLINE" ||
-    candidate.candidateType === "PERSONAL_TASK";
-  if (!official) blockers.push("공식 일정·내 마감이 아님");
-
-  if (isOptional) blockers.push("희망자 대상 표현");
-  if (candidate.ambiguityFlags.length > 0) blockers.push(`확인 필요: ${candidate.ambiguityFlags.join(", ")}`);
-  if (candidate.relationType !== "new") blockers.push("변경·취소 제안");
-  if (!related) blockers.push("나와 관련 있다고 보기 어려움");
-  if (ruleUsed === "time-only-assumed-send-day") blockers.push("날짜 없이 시각만 적힘");
-
-  return blockers;
-}
-
 /**
  * 쪽지 한 건에서 일정 후보를 뽑는다.
  *
@@ -121,7 +96,13 @@ export function extractFromMessage(
   message: BrowserMessage,
   options: BrowserExtractOptions = {},
 ): Candidate[] {
-  const { role = {}, periodTable = null, now = null, includePast = false } = options;
+  const {
+    role = {},
+    periodTable = null,
+    now = null,
+    includePast = false,
+    autoRegisterLevel = DEFAULT_AUTO_REGISTER_LEVEL,
+  } = options;
 
   const sentAt = parseSentAt(message.sentAt);
   if (sentAt === null) return [];
@@ -179,11 +160,6 @@ export function extractFromMessage(
         classification: verdict.classification,
       });
 
-      const flags: AmbiguityFlag[] = [...date.flags];
-      if (verdict.signals.recurrenceVague && !flags.includes("반복 주기 불명확")) {
-        flags.push("반복 주기 불명확");
-      }
-
       const isDeadline = verdict.classification === "DEADLINE";
       const base: Omit<Candidate, "autoRegisterEligible" | "autoRegisterBlockers"> = {
         id: makeId(),
@@ -204,7 +180,7 @@ export function extractFromMessage(
         confidence: verdict.confidence,
         confidenceBand: band(verdict.confidence),
         relationType: verdict.signals.relation,
-        ambiguityFlags: flags,
+        ambiguityFlags: ambiguityFlagsFor(date, verdict.signals),
         sourceGroupId: groupId,
         messageSentAt: message.sentAt,
         counterpart: "",
@@ -215,18 +191,24 @@ export function extractFromMessage(
       if (seen.has(key)) continue;
       seen.add(key);
 
-      const blockers = autoRegisterBlockers(
-        base,
-        verdict.signals.isOptional,
-        verdict.signals.matchesRole || verdict.signals.allStaff,
-        today,
-        date.rule,
-      );
+      const auto = evaluateAutoRegister({
+        candidateType: base.candidateType,
+        // 마감 후보는 날짜가 startAt 이 아니라 dueAt 에 들어간다. 둘 다 봐야 한다.
+        when: base.startAt ?? base.dueAt,
+        ambiguityFlags: base.ambiguityFlags,
+        relationType: base.relationType,
+        confidence: base.confidence,
+        isOptional: verdict.signals.isOptional,
+        related: verdict.signals.matchesRole || verdict.signals.allStaff,
+        dateRule: date.rule,
+        now: today,
+        level: autoRegisterLevel,
+      });
 
       candidates.push({
         ...base,
-        autoRegisterEligible: blockers.length === 0 && verdict.confidence >= 0.6,
-        autoRegisterBlockers: blockers,
+        autoRegisterEligible: auto.eligible,
+        autoRegisterBlockers: auto.blockers,
       });
     }
   }
@@ -234,7 +216,13 @@ export function extractFromMessage(
   return candidates;
 }
 
-export type { Candidate, UserRole, PeriodTable };
+export type { Candidate, UserRole, PeriodTable, AutoRegisterLevel };
+export {
+  AUTO_REGISTER_LEVELS,
+  AUTO_REGISTER_THRESHOLD,
+  DEFAULT_AUTO_REGISTER_LEVEL,
+  isAutoRegisterLevel,
+} from "./policy/autoRegister.js";
 export { band } from "./classify/classify.js";
 export { extractDates } from "./dates/resolve.js";
 export { parseSentAt } from "./dates/sentAt.js";

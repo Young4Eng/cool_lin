@@ -207,7 +207,16 @@
       "counterpart": "교무부장",
       "title": "회의 취소",
       "body": "8월 31일 예정이던 부장 회의는 취소되었습니다.",
-      "expect": { "relationType": "cancel", "autoRegister": false }
+      "expect": { "relationType": "cancel", "flags": [], "autoRegister": false }
+    },
+    {
+      "id": "rel-cancel-02",
+      "note": "취소인데 어떤 일정인지 이름이 없다 → 변경 대상 불명확 (기술계획서 7.4)",
+      "sentAt": "2026/08/27 12:00:00 (목)",
+      "counterpart": "교무부장",
+      "title": "취소 안내",
+      "body": "8월 31일 예정된 건은 취소되었습니다.",
+      "expect": { "relationType": "cancel", "flags": ["변경 대상 불명확"], "autoRegister": false }
     },
     {
       "id": "rel-update-01",
@@ -216,7 +225,7 @@
       "counterpart": "교무부장",
       "title": "시간 변경",
       "body": "9월 1일 교무회의 시간이 15:20으로 변경되었습니다.",
-      "expect": { "relationType": "update", "autoRegister": false }
+      "expect": { "relationType": "update", "flags": [], "autoRegister": false }
     },
     {
       "id": "urgent-01",

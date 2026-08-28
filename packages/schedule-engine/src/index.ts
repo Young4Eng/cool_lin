@@ -13,4 +13,15 @@ export { detectSensitive, type SensitiveKind } from "./text/sensitive.js";
 export { createFingerprintKey, messageFingerprint, scheduleFingerprint } from "./text/fingerprint.js";
 export { classifySentence, readSignals, scoreCandidate, band, type UserRole } from "./classify/classify.js";
 export { buildTitle, titleColumnIsUsable } from "./title.js";
+export {
+  ambiguityFlagsFor,
+  evaluateAutoRegister,
+  isAutoRegisterLevel,
+  AUTO_REGISTER_LEVELS,
+  AUTO_REGISTER_THRESHOLD,
+  DEFAULT_AUTO_REGISTER_LEVEL,
+  type AutoRegisterInput,
+  type AutoRegisterLevel,
+  type AutoRegisterVerdict,
+} from "./policy/autoRegister.js";
 export { runPipeline, type PipelineOptions, type PipelineResult, type PipelineStats } from "./pipeline.js";

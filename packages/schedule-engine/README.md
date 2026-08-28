@@ -113,6 +113,26 @@ interface Candidate {
   `dangerouslySetInnerHTML`에 넣지 않는다 (PRD 6장).
 - `autoRegisterEligible === false`면 `autoRegisterBlockers`를 사용자에게 그대로 보여준다.
 
+### 자동 등록 기준 단계 (설정 하나)
+
+`autoRegisterEligible`을 계산하는 기준은 사용자가 두 단계 중에서 고른다 (기술계획서 7.6).
+**안전 조건은 어느 단계에서도 움직이지 않는다.** 바뀌는 것은 신뢰도 문턱 하나뿐이다.
+
+```ts
+type AutoRegisterLevel = "아주 확실한 것만" | "분명한 일정까지";  // 기본값: "분명한 일정까지"
+
+runPipeline(files, { autoRegisterLevel: "아주 확실한 것만" });      // Node
+extractFromMessage(message, { autoRegisterLevel: "아주 확실한 것만" }); // 브라우저
+```
+
+값을 검증할 때는 `isAutoRegisterLevel(value)` 을 쓴다. 설정 화면에 넣을 목록은
+`AUTO_REGISTER_LEVELS` 에 있다. 문턱에 걸려 자동등록되지 않은 후보는
+`autoRegisterBlockers` 에 `「아주 확실한 것만」 기준에 미치지 못함` 이 들어 있으므로,
+그대로 보여주면 사용자가 단계를 낮추면 된다는 것을 알 수 있다.
+
+실제 파일 7개(기준일 2026-08-28)에서 후보 15건 중 자동등록은
+`분명한 일정까지` 3건 / `아주 확실한 것만` 0건이다. 기본값을 `분명한 일정까지`로 둔 이유다.
+
 ---
 
 ## 3. 왜 이렇게 만들었는가 — 실제 데이터에서 도출한 규칙
@@ -144,6 +164,7 @@ interface Candidate {
 | `5~6교시` | 교시표가 있을 때만 시각으로 | 없으면 `교시표 미설정` |
 | `8/11~8/13` | 시작·종료 | 종료 불명확하면 `종료일 불명확` |
 | `오후 3시 30분` | 정확한 시각 | 오전·오후 없이 1~7시면 `오전·오후 불명확` |
+| `예정된 건은 취소되었습니다` (일정 이름 없음) | 기존 일정과의 관계 | `변경 대상 불명확` |
 
 ### 신뢰도 점수 (기술계획서 7.2 공식 그대로)
 

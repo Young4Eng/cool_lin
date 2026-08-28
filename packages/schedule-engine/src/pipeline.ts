@@ -5,13 +5,19 @@ import { band, classifySentence, type UserRole } from "./classify/classify.js";
 import { diffDays, startOfDay, type Civil } from "./dates/civil.js";
 import { extractDates, type PeriodTable } from "./dates/resolve.js";
 import { parseSentAt } from "./dates/sentAt.js";
+import {
+  ambiguityFlagsFor,
+  DEFAULT_AUTO_REGISTER_LEVEL,
+  evaluateAutoRegister,
+  type AutoRegisterLevel,
+} from "./policy/autoRegister.js";
 import { createFingerprintKey, messageFingerprint, scheduleFingerprint } from "./text/fingerprint.js";
 import { normalizeBody } from "./text/normalize.js";
 import { splitQuote } from "./text/quote.js";
 import { detectSensitive } from "./text/sensitive.js";
 import { splitSentences } from "./text/sentences.js";
 import { buildTitle } from "./title.js";
-import type { Candidate, DateMention } from "./types.js";
+import type { Candidate } from "./types.js";
 
 /**
  * 가져오기 파이프라인.
@@ -33,6 +39,8 @@ export interface PipelineOptions {
   /** 한 번에 만들 수 있는 후보 수 상한 (PRD 6장) */
   maxCandidates?: number;
   fingerprintKey?: Buffer;
+  /** 자동 등록 기준 단계 (기술계획서 7.6). 기본값은 «분명한 일정까지» */
+  autoRegisterLevel?: AutoRegisterLevel;
 }
 
 export interface PipelineStats {
@@ -64,38 +72,6 @@ export interface PipelineResult {
   ignoredColumns: string[];
 }
 
-/** 자동등록 안전 조건 (PRD 9장). 하나라도 걸리면 후보함에 남긴다. */
-function checkAutoRegister(
-  candidate: Omit<Candidate, "autoRegisterEligible" | "autoRegisterBlockers">,
-  isOptional: boolean,
-  matchesRole: boolean,
-  now: Civil,
-): string[] {
-  const blockers: string[] = [];
-  // 마감 후보는 날짜가 startAt 이 아니라 dueAt 에 들어간다. 둘 다 봐야 한다.
-  const when = candidate.startAt ?? candidate.dueAt;
-  const start = new Date(when === null ? "" : when.length === 10 ? when + "T00:00Z" : when + "Z");
-
-  if (when === null || Number.isNaN(start.getTime())) {
-    blockers.push("날짜가 없음");
-  } else if (diffDays(start, startOfDay(now)) < 0) {
-    blockers.push("이미 지난 날짜");
-  }
-
-  const official =
-    candidate.candidateType === "OFFICIAL_EVENT" ||
-    candidate.candidateType === "DEADLINE" ||
-    candidate.candidateType === "PERSONAL_TASK";
-  if (!official) blockers.push("공식 일정·내 마감이 아님");
-
-  if (isOptional) blockers.push("희망자 대상 표현");
-  if (candidate.ambiguityFlags.length > 0) blockers.push(`확인 필요: ${candidate.ambiguityFlags.join(", ")}`);
-  if (candidate.relationType !== "new") blockers.push("변경·취소 제안");
-  if (!matchesRole) blockers.push("나와 관련 있다고 보기 어려움");
-
-  return blockers;
-}
-
 export async function runPipeline(files: string[], options: PipelineOptions = {}): Promise<PipelineResult> {
   const {
     windowDays = 14,
@@ -104,6 +80,7 @@ export async function runPipeline(files: string[], options: PipelineOptions = {}
     periodTable = null,
     maxCandidates = 1000,
     fingerprintKey = createFingerprintKey(),
+    autoRegisterLevel = DEFAULT_AUTO_REGISTER_LEVEL,
   } = options;
 
   const stats: PipelineStats = {
@@ -247,20 +224,25 @@ export async function runPipeline(files: string[], options: PipelineOptions = {}
             confidence: verdict.confidence,
             confidenceBand: band(verdict.confidence),
             relationType: verdict.signals.relation,
-            ambiguityFlags: dateFlags(date, verdict.signals.recurrenceVague),
+            ambiguityFlags: ambiguityFlagsFor(date, verdict.signals),
             sourceGroupId,
             messageSentAt: raw.sentAtRaw,
             counterpart: raw.counterpart,
           };
 
-          const blockers = checkAutoRegister(
-            base,
-            verdict.signals.isOptional,
-            verdict.signals.matchesRole || verdict.signals.allStaff,
+          const verdictAuto = evaluateAutoRegister({
+            candidateType: base.candidateType,
+            // 마감 후보는 날짜가 startAt 이 아니라 dueAt 에 들어간다. 둘 다 봐야 한다.
+            when: base.startAt ?? base.dueAt,
+            ambiguityFlags: base.ambiguityFlags,
+            relationType: base.relationType,
+            confidence: base.confidence,
+            isOptional: verdict.signals.isOptional,
+            related: verdict.signals.matchesRole || verdict.signals.allStaff,
+            dateRule: date.rule,
             now,
-          );
-          // 시각을 지어낸 경우도 자동등록을 막는다.
-          if (date.rule === "time-only-assumed-send-day") blockers.push("날짜 없이 시각만 적힘");
+            level: autoRegisterLevel,
+          });
 
           const scheduleKey = scheduleFingerprint(fingerprintKey, {
             startAt: base.startAt ?? base.dueAt ?? "",
@@ -277,8 +259,8 @@ export async function runPipeline(files: string[], options: PipelineOptions = {}
 
           const candidate: Candidate = {
             ...base,
-            autoRegisterEligible: blockers.length === 0 && verdict.confidence >= 0.6,
-            autoRegisterBlockers: blockers,
+            autoRegisterEligible: verdictAuto.eligible,
+            autoRegisterBlockers: verdictAuto.blockers,
           };
           candidates.push(candidate);
           producedForMessage += 1;
@@ -292,10 +274,4 @@ export async function runPipeline(files: string[], options: PipelineOptions = {}
 
   stats.candidates = candidates.length;
   return { candidates, stats, ignoredColumns: [...ignoredColumns] };
-}
-
-function dateFlags(date: DateMention, recurrenceVague: boolean) {
-  const flags = [...date.flags];
-  if (recurrenceVague && !flags.includes("반복 주기 불명확")) flags.push("반복 주기 불명확");
-  return flags;
 }
