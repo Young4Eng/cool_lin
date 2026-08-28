@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp, Star, Check, GripVertical } from 'lucide-react';
+import { CalendarPlus, Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp, Star, Check, GripVertical } from 'lucide-react';
 import { eventSummary } from '../../utils/summarizeMessage';
+import { openGoogleCalendar } from '../../utils/googleCalendar';
 import { pinnedSorted, pinOrderBetween, splitByDone } from '../../utils/listOrdering';
 import { useDragReorder } from '../../utils/useDragReorder';
 
@@ -47,6 +48,7 @@ function ItemCard({
   onDeleteEvent,
   onOpenSource,
   onApproveEvent,
+  onAddToGoogleCalendar,
   onToggleTodo,
   onToggleStar,
   onHandlePointerDown,
@@ -58,6 +60,17 @@ function ItemCard({
   const days = dDay(item.date);
   const flags = item.ambiguityFlags ?? [];
   const summary = isTodo ? '' : eventSummary(item);
+  const addedToGoogle = Boolean(item.googleCalendarAddedAt);
+
+  const handleAddToGoogle = (e) => {
+    e.stopPropagation();
+    try {
+      const { added } = openGoogleCalendar(item);
+      onAddToGoogleCalendar?.(added);
+    } catch {
+      // 제목/날짜가 비면 URL을 못 만든다. 위젯은 그대로 둔다.
+    }
+  };
 
   return (
     <article
@@ -184,9 +197,25 @@ function ItemCard({
         </div>
       )}
 
-      {/* 삭제는 평소에 숨겨 둔다 — 흘깃 보는 화면에 위험한 버튼을 상시 노출하지 않는다 */}
+      {/* 구글 캘린더·삭제는 평소에 숨긴다 — 흘깃 보는 화면에 액션을 상시 노출하지 않는다.
+          할 일 카드에는 두지 않는다 — 지우는 곳은 할 일 탭이고, 구글에 넣는 것은 일정이다. */}
       {!isTodo && (
-        <div className="mt-1 flex justify-end">
+        <div className="mt-1 flex justify-end gap-0.5">
+          {mode === 'calendar' && (
+            <button
+              type="button"
+              onClick={handleAddToGoogle}
+              className={`rounded p-0.5 transition-opacity hover:text-[#1D1715] focus:opacity-100 ${
+                addedToGoogle
+                  ? 'text-emerald-600 opacity-100'
+                  : 'text-[#C9C5BD] opacity-0 group-hover:opacity-100'
+              }`}
+              title={addedToGoogle ? '구글 캘린더에 추가됨 · 다시 열기' : '구글 캘린더에 추가'}
+              aria-label={`${item.title} 구글 캘린더에 추가`}
+            >
+              <CalendarPlus size={12} />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onDeleteEvent?.(item.id)}
@@ -219,6 +248,7 @@ export default function EventList({
   onDeleteEvent,
   onOpenSource,
   onApproveEvent,
+  onAddToGoogleCalendar,
   onToggleTodo,
   onToggleStar,
   onReorder,
@@ -286,6 +316,7 @@ export default function EventList({
       onDeleteEvent={onDeleteEvent}
       onOpenSource={onOpenSource}
       onApproveEvent={onApproveEvent}
+      onAddToGoogleCalendar={onAddToGoogleCalendar}
       onToggleTodo={onToggleTodo}
       onToggleStar={onToggleStar}
     />
