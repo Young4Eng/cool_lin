@@ -1,8 +1,13 @@
 node_modules/
 dist/
+.env
+.env.local
+*.log
 .DS_Store
-*.local
 
-# Editor
-.vscode/*
-!.vscode/extensions.json
+# 실제 쿨메신저 내보내기 원본은 커밋하지 않는다 (PRD 22장)
+coolexcel/
+*.xls
+*.xlsx
+!fixtures/**/*.xls
+새 폴더/

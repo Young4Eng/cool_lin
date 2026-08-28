@@ -1,0 +1,25 @@
+{
+  "name": "@cool-lin/schedule-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "쿨메신저 XLS → 일정 후보 추출·분류 엔진 (역할 3: 데이터 학습·규칙 도출)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "analyze": "tsx scripts/analyze.ts",
+    "extract": "tsx scripts/extract.ts",
+    "eval": "tsx scripts/evaluate.ts",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}
