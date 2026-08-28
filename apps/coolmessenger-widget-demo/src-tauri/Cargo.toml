@@ -15,6 +15,9 @@ tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-opener = "2.5.4"
+# 로컬 Ollama 호출용. 127.0.0.1 로만 가므로 TLS 백엔드는 넣지 않는다.
+reqwest = { version = "0.13", default-features = false, features = ["json"] }
+serde_json = "1"
 
 [target.'cfg(windows)'.dependencies]
 # 등록된 자동 실행 명령줄을 «읽기» 위해서만 쓴다. 쓰기는 autostart 플러그인이 한다.

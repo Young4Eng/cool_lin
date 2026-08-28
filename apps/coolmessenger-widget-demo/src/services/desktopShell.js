@@ -164,6 +164,32 @@ export async function withWidgetHidden(run) {
   }
 }
 
+/**
+ * 로컬 Ollama 에 한 번 물어본다. 셸이 HTTP 를 치고, 답 문자열을 그대로 돌려준다.
+ *
+ * 웹뷰에서 곧장 fetch 하지 않는 이유는 `services/ollamaClient.js` 에 적어 두었다
+ * (Ollama 가 브라우저 Origin 을 막는다).
+ *
+ * 여기로 넘기는 본문은 **이미 비식별된 것이어야 한다** (services/piiRedact.js).
+ */
+export async function ollamaChat({ endpoint, model, system, prompt, jsonMode = false, temperature = 0.3 }) {
+  if (!inDesktopShell()) throw new Error('설치본에서만 됩니다.');
+  return invoke('ollama_chat', {
+    endpoint,
+    model,
+    system,
+    prompt,
+    jsonMode,
+    temperature,
+  });
+}
+
+/** 이 PC 에 깔려 있는 Ollama 모델 이름들. Ollama 가 꺼져 있으면 던진다. */
+export async function ollamaTags(endpoint) {
+  if (!inDesktopShell()) throw new Error('설치본에서만 됩니다.');
+  return invoke('ollama_tags', { endpoint });
+}
+
 /** 바탕화면의 가장 최근 쿨메신저 내보내기 파일. 없으면 null. */
 export async function readLatestExport() {
   if (!inDesktopShell()) return null;

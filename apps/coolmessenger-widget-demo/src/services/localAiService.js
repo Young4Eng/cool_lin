@@ -2,11 +2,17 @@
 // Supports both Browser On-Device Rule-Based NLP & External Local LLMs (Ollama / LM Studio / LocalAI)
 //
 // Schedule extraction is delegated to packages/schedule-engine via
-// scheduleEngineAdapter.js. Summary and smart-reply send message text
-// through the server redact/complete route so raw PII never leaves the PC
-// toward Ollama from the browser.
+// scheduleEngineAdapter.js.
+//
+// 요약·답장 본문은 **비식별을 거친 뒤에만** Ollama 로 간다. 어디서 가리느냐가 갈린다:
+//   설치본 — 위젯이 직접 가리고(piiRedact.js) 셸을 거쳐 Ollama 를 부른다. 서버가 없다.
+//   브라우저 — 예전처럼 Node 서버의 redact/complete 경로를 쓴다.
+// 어느 쪽이든 원문이 이 PC 를 떠나지 않는 것은 같다.
 
 import { extractBestEventFromMessage, extractEventsFromMessage } from './scheduleEngineAdapter';
+import { inDesktopShell, ollamaTags } from './desktopShell';
+import { redactMessageFields } from './piiRedact';
+import { completeWithOllama } from './ollamaClient';
 
 export const AI_SETTINGS_STORAGE_KEY = 'cool_ai_settings';
 
@@ -41,6 +47,30 @@ export const saveAiSettings = (settings) => {
 function serverBase() {
   const settings = getAiSettings();
   return (settings.serverEndpoint || 'http://localhost:4000').replace(/\/$/, '');
+}
+
+/**
+ * 요약·답장 한 번. 설치본이면 위젯이 가리고 곧장 Ollama 로, 아니면 서버로 보낸다.
+ * 어느 쪽이든 실패하면 null — 부르는 쪽이 내장 문안으로 넘어간다.
+ */
+async function complete(payload) {
+  if (inDesktopShell()) {
+    const redacted = redactMessageFields({
+      subject: payload.subject,
+      body: payload.body,
+      counterpart: payload.counterpart,
+    });
+    return completeWithOllama(
+      {
+        kind: payload.kind,
+        replyType: payload.replyType,
+        subject: redacted.subject,
+        body: redacted.body,
+      },
+      getAiSettings(),
+    );
+  }
+  return completeOnServer(payload);
 }
 
 /**
@@ -89,7 +119,7 @@ export async function generateAiSummary(message) {
 
   if (settings.mode !== 'builtin') {
     try {
-      const text = await completeOnServer({
+      const text = await complete({
         kind: 'summary',
         subject: message.subject || '',
         body: (message.bodyHtml || '').replace(/<[^>]*>/g, ' '),
@@ -120,7 +150,7 @@ export async function generateSmartReply(message, type = 'accept') {
 
   if (settings.mode !== 'builtin') {
     try {
-      const text = await completeOnServer({
+      const text = await complete({
         kind: 'reply',
         replyType: type,
         subject: message.subject || '',
@@ -145,6 +175,15 @@ export async function generateSmartReply(message, type = 'accept') {
 
 // 4. Test Local Ollama Connection
 export async function testOllamaConnection(endpoint) {
+  // 설치본에서는 셸이 물어본다. 웹뷰에서 곧장 fetch 하면 Ollama 가 Origin 을 보고
+  // 막기 때문에, 실제로는 잘 돌고 있는데도 「연결할 수 없습니다」가 나온다.
+  if (inDesktopShell()) {
+    try {
+      return { ok: true, models: await ollamaTags(endpoint) };
+    } catch (e) {
+      return { ok: false, error: e?.message || '로컬 Ollama에 연결할 수 없습니다.' };
+    }
+  }
   try {
     const res = await fetch(`${endpoint}/api/tags`, { method: 'GET' });
     if (!res.ok) return { ok: false, error: `HTTP ${res.status} 오류` };

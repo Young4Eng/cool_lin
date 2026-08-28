@@ -202,3 +202,22 @@ describe("local PII encryption", { concurrency: false }, () => {
     assertNoRawPii(JSON.stringify(result), "withExtractAndAi payload");
   });
 });
+
+// 「메일」의 «일» 이 날짜 판정에 걸려 그 옆의 전화번호가 통째로 안 가려지던 자리.
+// 학교 쪽지에서 「연락처 010-… , 메일 …」 은 가장 흔한 문장이라 회귀하면 곧 누출이다.
+test("전화번호 옆에 «메일»·«일정» 이 있어도 가린다", () => {
+  const { sheets, pii_tokens } = redactSheets({
+    쪽지: [
+      {
+        보낸사람: "",
+        받은사람: "",
+        제목: "",
+        내용: "연락처 010-1234-5678, 메일 hong@school.kr 로 주세요. 일정은 내일입니다.",
+        첨부파일: "",
+      },
+    ],
+  });
+  const body = sheets["쪽지"]?.[0]?.["내용"] ?? "";
+  assert.ok(!body.includes("010-1234-5678"), `전화가 남았다: ${body}`);
+  assert.ok(pii_tokens.includes("PHONE_1"));
+});

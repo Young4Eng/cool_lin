@@ -22,6 +22,20 @@ function looksLikeDate(text: string, index: number, length: number): boolean {
   );
 }
 
+/**
+ * 전화번호꼴로 잡힌 이 자리가 사실은 날짜인가.
+ *
+ * 전화번호는 `0XX-XXXX-XXXX` 처럼 앞이 0 이고 숫자가 아홉 자리 넘는 모양이라,
+ * 한국식 날짜 표기가 이 꼴로 잡히는 경우는 사실상 없다. 그래서 바로 뒤에 붙은
+ * 날짜 글자만 본다.
+ *
+ * 예전에는 `looksLikeDate` 로 앞뒤 여덟 칸을 훑었다. 그러면 「메일」의 «일» 이나
+ * 「일정」·「3시」 같은 흔한 낱말에 걸려 그 옆의 전화번호가 통째로 안 가려졌다.
+ */
+function phoneIsDate(text: string, index: number, length: number): boolean {
+  return /^[년월일]/.test(text.slice(index + length, index + length + 1));
+}
+
 function nameVariants(raw: string): string[] {
   const trimmed = raw.trim();
   if (!trimmed) return [];
@@ -125,7 +139,7 @@ function redactPatterns(text: string, book: TokenBook, studentIds: boolean): str
   s = s.replace(PHONE_RE, (m, _g1: string, offset: number) => {
     const digits = m.replace(/\D/g, "");
     if (digits.length < 9) return m;
-    if (looksLikeDate(text, offset, m.length)) return m;
+    if (phoneIsDate(s, offset, m.length)) return m;
     return book.token("PHONE", m);
   });
   s = s.replace(STUDENT_LABELED_RE, (m) => book.token("STUDENT", m));

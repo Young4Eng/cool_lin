@@ -406,6 +406,134 @@ fn messenger_download_blocking(
     }
 }
 
+/// 로컬 Ollama 응답을 기다리는 한도. 3b 모델이 쪽지 수십 통을 훑으면 1분을 넘긴다.
+const OLLAMA_TIMEOUT_SECS: u64 = 130;
+
+/// 이 주소가 이 PC 안인가.
+///
+/// 위젯이 넘겨 주는 값을 그대로 믿지 않는다. 비식별을 거쳤다 해도 쪽지에서 온 텍스트가
+/// 바깥 서버로 나가는 길은 만들지 않는다 (기술계획서 8.4, PRD 17장).
+fn is_local_endpoint(url: &str) -> bool {
+    let rest = url
+        .strip_prefix("http://")
+        .or_else(|| url.strip_prefix("https://"))
+        .unwrap_or(url);
+    let authority = rest.split('/').next().unwrap_or("");
+    let host = match authority.rfind(':') {
+        // `[::1]:11434` 는 마지막 콜론만 포트다. `[::1]` 자체의 콜론은 대괄호 안에 있다.
+        Some(i) if !authority[i + 1..].contains(']') => &authority[..i],
+        _ => authority,
+    };
+    matches!(host, "localhost" | "127.0.0.1" | "[::1]" | "::1")
+}
+
+fn ollama_url(endpoint: &str, path: &str) -> Result<String, String> {
+    let base = endpoint.trim().trim_end_matches('/');
+    if !is_local_endpoint(base) {
+        return Err("로컬 주소(localhost·127.0.0.1)만 쓸 수 있습니다.".into());
+    }
+    Ok(format!("{base}{path}"))
+}
+
+fn ollama_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(OLLAMA_TIMEOUT_SECS))
+        // 이 PC 안으로만 간다. 회사·학교 프록시를 타면 그게 곧 외부 전송이다.
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("로컬 AI 연결을 준비하지 못했습니다: {e}"))
+}
+
+/// 깔려 있는 모델 이름들. Ollama 가 꺼져 있으면 Err.
+#[tauri::command]
+async fn ollama_tags(endpoint: String) -> Result<Vec<String>, String> {
+    let url = ollama_url(&endpoint, "/api/tags")?;
+    let res = ollama_client()?
+        .get(url)
+        .send()
+        .await
+        .map_err(|_| "로컬 Ollama에 연결할 수 없습니다.".to_string())?;
+    if !res.status().is_success() {
+        return Err(format!("로컬 Ollama가 HTTP {} 로 답했습니다.", res.status().as_u16()));
+    }
+    let body: serde_json::Value = res
+        .json()
+        .await
+        .map_err(|_| "로컬 Ollama 응답을 읽지 못했습니다.".to_string())?;
+    Ok(body["models"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|m| m["name"].as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default())
+}
+
+/// 로컬 Ollama 에 한 번 물어보고 답 문자열을 그대로 돌려준다.
+///
+/// **셸이 부른다.** 웹뷰에서 곧장 fetch 하면 Ollama 가 막는다 — 브라우저 요청에는
+/// `Origin` 헤더가 붙고 Ollama 는 `OLLAMA_ORIGINS` 에 없는 곳을 거절하는데, 설치본의
+/// origin 은 `http://tauri.localhost` 다. 그대로 두면 교사가 환경변수를 손대야만 로컬
+/// AI 가 도는 프로그램이 된다. 셸에서 부르면 Origin 이 없어 기본 설치 그대로 동작한다.
+///
+/// **여기로 오는 본문은 이미 위젯이 비식별한 것이다** (services/piiRedact.js).
+/// 이 함수는 내용을 보지 않고, 이 PC 밖으로는 보내지 않는다.
+#[tauri::command]
+async fn ollama_chat(
+    endpoint: String,
+    model: String,
+    system: String,
+    prompt: String,
+    json_mode: bool,
+    temperature: f64,
+) -> Result<String, String> {
+    let url = ollama_url(&endpoint, "/api/chat")?;
+    let mut body = serde_json::json!({
+        "model": model,
+        "stream": false,
+        "messages": [
+            { "role": "system", "content": system },
+            { "role": "user", "content": prompt },
+        ],
+        "options": { "temperature": temperature, "num_predict": 1024 },
+    });
+    if json_mode {
+        body["format"] = serde_json::Value::String("json".into());
+    }
+
+    let res = ollama_client()?
+        .post(url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| {
+            if e.is_timeout() {
+                "로컬 Ollama 응답이 시간 초과되었습니다.".to_string()
+            } else {
+                "로컬 Ollama에 연결할 수 없습니다.".to_string()
+            }
+        })?;
+    let status = res.status();
+    if !status.is_success() {
+        // 404 는 대개 «그 모델이 안 깔려 있다» 이다. 교사가 고칠 수 있게 그렇게 말한다.
+        return Err(if status.as_u16() == 404 {
+            format!("로컬 Ollama에 «{model}» 모델이 없습니다. `ollama pull {model}` 로 받아 주세요.")
+        } else {
+            format!("로컬 Ollama가 HTTP {} 로 답했습니다.", status.as_u16())
+        });
+    }
+    let data: serde_json::Value = res
+        .json()
+        .await
+        .map_err(|_| "로컬 Ollama 응답을 읽지 못했습니다.".to_string())?;
+    Ok(data["message"]["content"]
+        .as_str()
+        .or_else(|| data["response"].as_str())
+        .unwrap_or("")
+        .to_string())
+}
+
 /// 시스템 기본 브라우저로 URL을 연다.
 ///
 /// 위젯 웹뷰에서 window.open 을 쓰면 설치본에서는 아무 창도 안 뜨거나
@@ -485,7 +613,9 @@ fn main() {
             notify_deadline,
             read_latest_export,
             run_messenger_download,
-            open_url
+            open_url,
+            ollama_tags,
+            ollama_chat
         ])
         .setup(|app| {
             place_widget(app.handle());

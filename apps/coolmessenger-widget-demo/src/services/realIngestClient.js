@@ -1,8 +1,10 @@
 import { candidateToEvent } from './scheduleEngineAdapter';
 import { getAiSettings } from './localAiService';
-import { eventsFromIngestPayload } from './aiItemMapper';
+import { eventsFromIngestPayload, itemToEvent } from './aiItemMapper';
 import { inDesktopShell, readLatestExport, runMessengerDownload, withWidgetHidden } from './desktopShell';
-import { eventsFromExport } from './localExport';
+import { eventsFromExport, parseExportXml } from './localExport';
+import { redactSheets } from './piiRedact';
+import { extractItemsWithOllama } from './ollamaClient';
 
 const INGEST_TIMEOUT_MS = 240000;
 const LATEST_TIMEOUT_MS = 160000;
@@ -51,21 +53,68 @@ export async function fetchFromLatestDownload() {
 /**
  * 바탕화면의 최신 내보내기 파일에서 바로 뽑는다 (서버 없음).
  *
- * 로컬 AI(items) 는 서버가 붙여 주던 것이라 이 경로에는 없다. 규칙 엔진 결과만 나오며,
- * 그건 `source: 'candidates'` 로 알린다 — 화면이 「로컬 AI 는 꺼져 있습니다」라고
- * 말할 수 있어야 하기 때문이다.
+ * 규칙 엔진이 먼저 뽑고, 로컬 AI 가 켜져 있으면 **거기에 더한다.**
+ *
+ * 서버 경로는 items 가 하나라도 나오면 규칙 엔진 결과를 통째로 대신했다
+ * (aiItemMapper.eventsFromIngestPayload). 설치본에서 그대로 따라 하면 Ollama 를 깐
+ * PC 에서만 캘린더가 텅 비게 된다 — 모델이 준 항목은 규칙으로 확인한 것이 아니라
+ * 전부 검토함으로 가기 때문이다. 「로컬 AI 를 깔았더니 일정이 사라졌다」는 설명할 수
+ * 없는 동작이다. 그래서 여기서는 대신하지 않고 «규칙 엔진이 놓친 것»만 보탠다.
+ *
+ * 원문은 이 함수 밖으로 나가지 않는다. 모델에게는 비식별한 시트만 간다 (piiRedact.js).
  */
 async function fromLocalFile(emptyMessage) {
   const file = await readLatestExport();
   if (!file) throw new Error(emptyMessage);
+
+  const events = eventsFromExport(file.text);
+  const settings = getAiSettings();
+
+  // 「내장 규칙만」으로 두었으면 모델을 부르지 않는다.
+  if (settings.mode === 'builtin') {
+    return { file: file.path, stats: null, events, source: 'candidates', items: [], ai: null };
+  }
+
+  // parseExportXml 은 시트를 [{name, rows}] 로 준다. 비식별기는 {이름: rows} 를 받는다.
+  let sheets = {};
+  try {
+    for (const sheet of parseExportXml(file.text)) sheets[sheet.name] = sheet.rows;
+  } catch {
+    sheets = {};
+  }
+
+  const { sheets: redacted } = redactSheets(sheets);
+  const ai = await extractItemsWithOllama(redacted, settings);
+
+  const extra = ai.items.map((item, i) => itemToEvent(item, i)).filter(Boolean);
+  const merged = [...events, ...mergeAiItems(events, extra)];
+
   return {
     file: file.path,
     stats: null,
-    events: eventsFromExport(file.text),
-    source: 'candidates',
-    items: [],
-    ai: null,
+    events: merged,
+    // 모델이 실제로 무언가 보탰을 때만 「로컬 AI」로 표시한다.
+    source: extra.length > 0 ? 'items' : 'candidates',
+    items: ai.items,
+    ai: { ok: ai.ok, model: ai.model, ...(ai.error ? { error: ai.error } : {}) },
   };
+}
+
+/** 규칙 엔진이 이미 잡은 것과 겹치는 모델 항목을 덜어 낸다. */
+function mergeAiItems(engineEvents, aiEvents) {
+  const squash = (t) => String(t || '').replace(/\s+/g, '');
+  const byDate = new Map();
+  for (const e of engineEvents) {
+    if (!byDate.has(e.date)) byDate.set(e.date, []);
+    byDate.get(e.date).push(squash(e.title));
+  }
+  return aiEvents.filter((item) => {
+    const titles = byDate.get(item.date);
+    if (!titles) return true;
+    const t = squash(item.title);
+    // 제목이 서로를 품으면 같은 일정으로 본다 — 모델은 같은 일을 짧게 줄여 쓴다.
+    return !titles.some((x) => x && t && (x.includes(t) || t.includes(x)));
+  });
 }
 
 // 후보 하나가 «어느 쪽지에서 나왔는지» 되찾는다.
