@@ -179,17 +179,56 @@ export default function AiSettingsModal({ isOpen, onClose }) {
           </div>
 
           {/* Automation Switches */}
-          <div className="space-y-2 pt-1">
+          <div className="space-y-1 pt-1">
             <label className="flex items-center justify-between p-2 rounded hover:bg-slate-50 cursor-pointer">
               <div>
                 <span className="font-semibold block text-slate-800">쪽지 수신 시 일정 자동 감지</span>
-                <span className="text-[10.5px] text-slate-500">본문 속 마감일/회의 일정을 파악하여 캘린더에 연동 대기</span>
+                <span className="text-[10.5px] text-slate-500">본문 속 마감일/회의 일정을 파악하여 캘린더에 연동 대기 (메신저가 쌓이지 않도록 자동 처리)</span>
               </div>
               <input
                 type="checkbox"
                 checked={settings.autoExtractSchedule}
                 onChange={(e) => setSettings(prev => ({ ...prev, autoExtractSchedule: e.target.checked }))}
-                className="w-4 h-4 text-cool-600 rounded"
+                className="w-4 h-4 text-cool-600 rounded shrink-0 ml-2"
+              />
+            </label>
+
+            <label className="flex items-center justify-between p-2 rounded hover:bg-slate-50 cursor-pointer">
+              <div>
+                <span className="font-semibold block text-slate-800">새 쪽지 알림</span>
+                <span className="text-[10.5px] text-slate-500">새 쪽지가 도착하면 화면에 알림을 표시합니다</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.autoNotifyNewMessage}
+                onChange={(e) => setSettings(prev => ({ ...prev, autoNotifyNewMessage: e.target.checked }))}
+                className="w-4 h-4 text-cool-600 rounded shrink-0 ml-2"
+              />
+            </label>
+
+            <label className="flex items-center justify-between p-2 rounded hover:bg-slate-50 cursor-pointer">
+              <div>
+                <span className="font-semibold block text-slate-800">마감 전 알림</span>
+                <span className="text-[10.5px] text-slate-500">
+                  마감{' '}
+                  <input
+                    type="number"
+                    min={5}
+                    step={5}
+                    disabled={!settings.deadlineReminderEnabled}
+                    value={settings.deadlineReminderMinutes}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setSettings(prev => ({ ...prev, deadlineReminderMinutes: Math.max(5, parseInt(e.target.value, 10) || 5) }))}
+                    className="w-12 border border-slate-300 rounded px-1 text-center disabled:opacity-40"
+                  />
+                  {' '}분 전에 알려줍니다
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.deadlineReminderEnabled}
+                onChange={(e) => setSettings(prev => ({ ...prev, deadlineReminderEnabled: e.target.checked }))}
+                className="w-4 h-4 text-cool-600 rounded shrink-0 ml-2"
               />
             </label>
           </div>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
-  Calendar, CheckSquare, Plus, Sparkles, Pin,
-  ChevronDown, ChevronUp, RefreshCw, X, Sliders, MonitorUp
+  Calendar, CheckSquare, Plus, Sparkles, Pin, ClipboardCheck,
+  ChevronDown, ChevronUp, MonitorUp
 } from 'lucide-react';
 import MiniCalendar from './MiniCalendar';
 import EventList from './EventList';
@@ -10,6 +10,15 @@ import EventEditorModal from './EventEditorModal';
 import WindowFrame from '../desktop/WindowFrame';
 import { openDesktopWidget } from '../../utils/desktopWidgetLauncher';
 import { getWidgetAutoStart, setWidgetAutoStart } from '../../utils/widgetAutoStart';
+
+// An AI-extracted event needs review when the extractor itself flagged it
+// as not safe to silently auto-register (see localAiService.js /
+// packages/schedule-engine's Candidate.autoRegisterEligible contract).
+// Events from before this field existed, or added manually, are treated
+// as already-trusted so old data doesn't suddenly pile into 검토함.
+function needsReview(event) {
+  return event.fromAi && event.autoRegisterEligible === false && !event.reviewed;
+}
 
 export default function ScheduleWidget({
   isOpen,
@@ -23,13 +32,14 @@ export default function ScheduleWidget({
   todos = [],
   onAddEvent,
   onDeleteEvent,
+  onApproveEvent,
   onToggleTodo,
   onAddTodo,
   onDeleteTodo,
   onOpenMessage,
   onOpenAiAssistant,
 }) {
-  const [activeTab, setActiveTab] = useState('calendar'); // 'calendar' | 'todo' | 'ai_insights'
+  const [activeTab, setActiveTab] = useState('calendar'); // 'calendar' | 'review' | 'todo'
   const [selectedDate, setSelectedDate] = useState('2026-08-28');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
@@ -38,6 +48,8 @@ export default function ScheduleWidget({
   if (!isOpen || isMinimized) return null;
 
   const aiEventsCount = events.filter(e => e.fromAi).length;
+  const reviewEvents = events.filter(needsReview);
+  const calendarEvents = events.filter(e => !needsReview(e));
 
   return (
     <>
@@ -53,7 +65,7 @@ export default function ScheduleWidget({
         onMinimize={onMinimize}
         onMaximize={onMaximize}
         width={380}
-        height={620}
+        height={640}
         minWidth={320}
         minHeight={400}
         defaultPosition={{ x: window.innerWidth ? window.innerWidth - 410 : 700, y: 40 }}
@@ -109,18 +121,35 @@ export default function ScheduleWidget({
             <button
               type="button"
               onClick={() => setActiveTab('calendar')}
-              className={`px-3 py-1.5 font-bold rounded-t-md transition-colors flex items-center gap-1 ${
+              className={`px-2.5 py-1.5 font-bold rounded-t-md transition-colors flex items-center gap-1 ${
                 activeTab === 'calendar'
                   ? 'bg-white text-cool-700 shadow-2xs border-t-2 border-cool-600'
                   : 'text-slate-600 hover:bg-slate-200/60'
               }`}
             >
-              <Calendar size={13} /> 캘린더·일정
+              <Calendar size={13} /> 캘린더
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('review')}
+              className={`relative px-2.5 py-1.5 font-bold rounded-t-md transition-colors flex items-center gap-1 ${
+                activeTab === 'review'
+                  ? 'bg-white text-amber-700 shadow-2xs border-t-2 border-amber-500'
+                  : 'text-slate-600 hover:bg-slate-200/60'
+              }`}
+              title="AI가 확신하지 못해 확인이 필요한 일정"
+            >
+              <ClipboardCheck size={13} /> 검토함
+              {reviewEvents.length > 0 && (
+                <span className="bg-amber-500 text-white text-[9.5px] font-bold size-3.5 rounded-full flex items-center justify-center">
+                  {reviewEvents.length}
+                </span>
+              )}
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('todo')}
-              className={`px-3 py-1.5 font-bold rounded-t-md transition-colors flex items-center gap-1 ${
+              className={`px-2.5 py-1.5 font-bold rounded-t-md transition-colors flex items-center gap-1 ${
                 activeTab === 'todo'
                   ? 'bg-white text-cool-700 shadow-2xs border-t-2 border-cool-600'
                   : 'text-slate-600 hover:bg-slate-200/60'
@@ -149,7 +178,7 @@ export default function ScheduleWidget({
               {/* Mini Calendar (Collapsible in compact mode) */}
               {!isCompact && (
                 <MiniCalendar
-                  events={events}
+                  events={calendarEvents}
                   selectedDate={selectedDate}
                   onSelectDate={(d) => setSelectedDate(d)}
                 />
@@ -171,13 +200,30 @@ export default function ScheduleWidget({
                 </div>
 
                 <EventList
-                  events={events}
+                  events={calendarEvents}
                   selectedDate={selectedDate}
                   onDeleteEvent={onDeleteEvent}
                   onOpenMessageFromEvent={onOpenMessage}
+                  mode="calendar"
                 />
               </div>
             </>
+          )}
+
+          {activeTab === 'review' && (
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="pb-1.5 text-[11px] text-slate-500">
+                로컬 AI가 자동으로 캘린더에 넣기엔 확신이 부족했던 일정입니다. 확인 후 반영해 주세요.
+              </div>
+              <EventList
+                events={reviewEvents}
+                selectedDate={null}
+                onDeleteEvent={onDeleteEvent}
+                onOpenMessageFromEvent={onOpenMessage}
+                onApproveEvent={onApproveEvent}
+                mode="review"
+              />
+            </div>
           )}
 
           {activeTab === 'todo' && (

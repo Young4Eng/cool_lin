@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, CheckSquare, Sparkles, RefreshCw, Radio } from 'lucide-react';
+import { Calendar, CheckSquare, Sparkles, RefreshCw, Radio, ClipboardCheck } from 'lucide-react';
 import MiniCalendar from '../scheduleWidget/MiniCalendar';
 import EventList from '../scheduleWidget/EventList';
 import TodoList from '../scheduleWidget/TodoList';
@@ -9,6 +9,12 @@ import {
   loadStoredTodos, saveStoredTodos,
 } from '../../services/storageService';
 import { subscribeAiEventAdded } from '../../utils/widgetSync';
+
+// Same review-eligibility rule as ScheduleWidget.jsx — kept in sync manually
+// since this file renders in a fully separate popup window/bundle.
+function needsReview(event) {
+  return event.fromAi && event.autoRegisterEligible === false && !event.reviewed;
+}
 
 // Standalone desktop widget — rendered into its own popup window
 // (widget.html / widget-main.jsx), separate from the main CoolMessenger
@@ -87,6 +93,8 @@ export default function DesktopCalendarWidget() {
   };
 
   const handleDeleteEvent = (id) => persistEvents(events.filter(e => e.id !== id));
+  const handleApproveEvent = (id) =>
+    persistEvents(events.map(e => (e.id === id ? { ...e, reviewed: true } : e)));
   const handleToggleTodo = (id) =>
     persistTodos(todos.map(t => (t.id === id ? { ...t, completed: !t.completed } : t)));
   const handleAddTodo = (newTodo) => persistTodos([newTodo, ...todos]);
@@ -100,6 +108,8 @@ export default function DesktopCalendarWidget() {
 
   const timeLabel = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
   const syncedLabel = lastSyncedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const reviewEvents = events.filter(needsReview);
+  const calendarEvents = events.filter(e => !needsReview(e));
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-100 font-sans text-xs overflow-hidden">
@@ -158,6 +168,22 @@ export default function DesktopCalendarWidget() {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('review')}
+            className={`relative px-3 py-1.5 font-bold rounded-t-md transition-colors flex items-center gap-1 ${
+              activeTab === 'review'
+                ? 'bg-white text-amber-700 shadow-2xs border-t-2 border-amber-500'
+                : 'text-slate-600 hover:bg-slate-200/60'
+            }`}
+          >
+            <ClipboardCheck size={13} /> 검토함
+            {reviewEvents.length > 0 && (
+              <span className="bg-amber-500 text-white text-[9.5px] font-bold size-3.5 rounded-full flex items-center justify-center">
+                {reviewEvents.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('todo')}
             className={`px-3 py-1.5 font-bold rounded-t-md transition-colors flex items-center gap-1 ${
               activeTab === 'todo'
@@ -174,7 +200,7 @@ export default function DesktopCalendarWidget() {
           {activeTab === 'calendar' && (
             <>
               <MiniCalendar
-                events={events}
+                events={calendarEvents}
                 selectedDate={selectedDate}
                 onSelectDate={(d) => setSelectedDate(d)}
               />
@@ -185,12 +211,28 @@ export default function DesktopCalendarWidget() {
                   </span>
                 </div>
                 <EventList
-                  events={events}
+                  events={calendarEvents}
                   selectedDate={selectedDate}
                   onDeleteEvent={handleDeleteEvent}
+                  mode="calendar"
                 />
               </div>
             </>
+          )}
+
+          {activeTab === 'review' && (
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="pb-1.5 text-[11px] text-slate-500">
+                로컬 AI가 확신하지 못했던 일정입니다. 확인 후 반영해 주세요.
+              </div>
+              <EventList
+                events={reviewEvents}
+                selectedDate={null}
+                onDeleteEvent={handleDeleteEvent}
+                onApproveEvent={handleApproveEvent}
+                mode="review"
+              />
+            </div>
           )}
 
           {activeTab === 'todo' && (

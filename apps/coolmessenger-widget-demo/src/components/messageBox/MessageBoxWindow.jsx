@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-  Search, Download, Trash2, SlidersHorizontal, ChevronDown, 
-  Send, RefreshCw, Star, Mail, Inbox
+import {
+  Search, Download, Trash2, ChevronDown,
+  Star, Inbox, Archive, Paperclip
 } from 'lucide-react';
 import { PenguinIcon } from '../common/Icons';
 import MessageList from './MessageList';
@@ -19,12 +19,17 @@ export default function MessageBoxWindow({
   onMaximize,
   onClose,
   messages = [],
+  events = [],
   onAddEventToSchedule,
   onOpenComposeReply,
   onDeleteMessage,
   onToggleStar,
+  onArchiveMessage,
+  onUnarchiveMessage,
+  onMarkUnread,
+  onOpenAttachmentHub,
 }) {
-  const [activeTab, setActiveTab] = useState('inbox'); // 'inbox' | 'sent'
+  const [activeTab, setActiveTab] = useState('inbox'); // 'inbox' | 'sent' | 'archived'
   const [selectedMessageId, setSelectedMessageId] = useState(messages[0]?.id || null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchField, setSearchField] = useState('all');
@@ -35,6 +40,7 @@ export default function MessageBoxWindow({
   const filteredByTab = messages.filter(m => m.folder === activeTab);
   const selectedMessage = messages.find(m => m.id === selectedMessageId) || filteredByTab[0];
   const sender = selectedMessage ? memberMap[selectedMessage.fromId] : null;
+  const archivedCount = messages.filter(m => m.folder === 'archived').length;
 
   return (
     <>
@@ -90,6 +96,21 @@ export default function MessageBoxWindow({
             >
               보낸메시지
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('archived');
+                const firstArchived = messages.find(m => m.folder === 'archived');
+                setSelectedMessageId(firstArchived ? firstArchived.id : null);
+              }}
+              className={`flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-t-md transition-colors ${
+                activeTab === 'archived'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'bg-[#3b92cb] text-white hover:bg-[#3488be]'
+              }`}
+            >
+              <Archive size={12} /> 보관함 ({archivedCount})
+            </button>
 
             <select className="ml-2 bg-[#3b92cb] text-white text-xs px-2 py-1 rounded border border-[#5ab2e6] outline-none">
               <option>전체 메시지</option>
@@ -138,6 +159,17 @@ export default function MessageBoxWindow({
               <Download size={14} />
             </button>
 
+            {onOpenAttachmentHub && (
+              <button
+                type="button"
+                onClick={onOpenAttachmentHub}
+                className="bg-[#3b92cb] hover:bg-[#3488be] text-white p-1 rounded border border-[#5ab2e6]"
+                title="첨부파일 한 번에 보기"
+              >
+                <Paperclip size={14} />
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => {
@@ -159,6 +191,7 @@ export default function MessageBoxWindow({
             onSelectMessage={(id) => setSelectedMessageId(id)}
             onToggleStar={onToggleStar}
             searchQuery={searchQuery}
+            events={events}
           />
 
           <MessageDetail
@@ -167,6 +200,9 @@ export default function MessageBoxWindow({
             onAddEventToSchedule={onAddEventToSchedule}
             onOpenComposeReply={onOpenComposeReply}
             onDeleteMessage={onDeleteMessage}
+            onArchiveMessage={onArchiveMessage}
+            onUnarchiveMessage={onUnarchiveMessage}
+            onMarkUnread={onMarkUnread}
           />
         </div>
       </WindowFrame>

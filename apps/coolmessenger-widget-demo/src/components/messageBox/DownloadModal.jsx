@@ -2,9 +2,28 @@ import React, { useState } from 'react';
 import { PenguinIcon } from '../common/Icons';
 import confetti from 'canvas-confetti';
 
+// 재조회 가능 기간 프리셋 — 예전엔 최근 2개월 정도만 오갈 수 있었지만,
+// 학기 단위 업무(생활기록부, 학기말 정산 등)는 그보다 훨씬 이전 쪽지를
+// 다시 찾아야 하는 경우가 많아 프리셋을 넉넉하게 늘려둠.
+const RANGE_PRESETS = [
+  { label: '최근 1개월', months: 1 },
+  { label: '최근 3개월', months: 3 },
+  { label: '최근 6개월', months: 6 },
+  { label: '최근 1년', months: 12 },
+  { label: '전체 (2년)', months: 24 },
+];
+
+function monthsAgo(from, months) {
+  const d = new Date(from);
+  d.setMonth(d.getMonth() - months);
+  return d.toISOString().slice(0, 10);
+}
+
+const TODAY = '2026-08-28';
+
 export default function DownloadModal({ isOpen, onClose, totalCount = 5029 }) {
-  const [startDate, setStartDate] = useState('2026-07-01');
-  const [endDate, setEndDate] = useState('2026-08-26');
+  const [startDate, setStartDate] = useState(monthsAgo(TODAY, 1));
+  const [endDate, setEndDate] = useState(TODAY);
   const [folderPath, setFolderPath] = useState('C:\\Users\\USER\\Desktop\\coolmsg_2026');
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
@@ -72,6 +91,25 @@ export default function DownloadModal({ isOpen, onClose, totalCount = 5029 }) {
                 onChange={(e) => setEndDate(e.target.value)}
                 className="border border-slate-300 rounded px-2 py-1 bg-white outline-none focus:border-cool-500"
               />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="w-16 text-slate-600 font-medium shrink-0">빠른 선택</span>
+            <div className="flex items-center gap-1 flex-wrap">
+              {RANGE_PRESETS.map(preset => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    setStartDate(monthsAgo(TODAY, preset.months));
+                    setEndDate(TODAY);
+                  }}
+                  className="bg-slate-100 hover:bg-cool-100 border border-slate-300 hover:border-cool-300 text-slate-700 px-2 py-1 rounded text-[10.5px] font-medium transition-colors"
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
           </div>
 

@@ -97,8 +97,11 @@ export default function AiAssistantWindow({
   const handleBatchSync = () => {
     let count = 0;
     messages.forEach(msg => {
-      const detected = extractScheduleFromText(msg.bodyHtml, msg.subject);
+      const detected = extractScheduleFromText(msg.bodyHtml, msg.subject, {
+        senderFlaggedCalendar: !!msg.linkToCalendar,
+      });
       if (detected && onAddEvent) {
+        detected.sourceMessageId = msg.id;
         onAddEvent(detected);
         count++;
       }
