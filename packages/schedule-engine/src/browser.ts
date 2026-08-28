@@ -210,7 +210,6 @@ export function extractFromMessage(
         isOptional: verdict.signals.isOptional,
         related: relatedToUser(verdict.signals),
         dateRule: date.rule,
-        now: today,
         level: autoRegisterLevel,
       });
 

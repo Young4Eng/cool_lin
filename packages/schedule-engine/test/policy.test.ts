@@ -101,11 +101,9 @@ test("자동등록 단계 — 안전 조건은 단계와 무관하게 그대로�
     isOptional: true,
     related: false,
     dateRule: "absolute-md",
-    now: TODAY,
   };
 
   const safety = [
-    "이미 지난 날짜",
     "공식 일정·내 마감이 아님",
     "희망자 대상 표현",
     "확인 필요: 요일만 적힘",
@@ -203,7 +201,6 @@ test("자동등록 단계 — 가장 낮은 0.72 짜리는 자동 등록하지 �
       isOptional: false,
       related: true,
       dateRule: date.rule,
-      now: TODAY,
     }).blockers.includes("공식 일정·내 마감이 아님"),
     true,
   );

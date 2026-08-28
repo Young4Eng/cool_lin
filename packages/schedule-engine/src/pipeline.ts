@@ -253,7 +253,6 @@ export async function runPipeline(files: string[], options: PipelineOptions = {}
             isOptional: verdict.signals.isOptional,
             related: relatedToUser(verdict.signals),
             dateRule: date.rule,
-            now,
             level: autoRegisterLevel,
           });
 

@@ -10,7 +10,6 @@
  *   2. 신뢰도 문턱 — 사용자가 고르는 단계가 바꾸는 것은 이것 하나뿐이다.
  */
 import type { SentenceSignals } from "../classify/classify.js";
-import { diffDays, startOfDay, type Civil } from "../dates/civil.js";
 import type { AmbiguityFlag, Classification, DateMention, RelationType } from "../types.js";
 
 /** 등록 기준 단계. 사용자가 설정에서 고른다 (기술계획서 7.6). */
@@ -121,8 +120,6 @@ export interface AutoRegisterInput {
   related: boolean;
   /** 이 날짜를 만든 규칙 이름. 시각만 적혀 발송일을 끌어다 쓴 경우를 막는다. */
   dateRule: string;
-  /** 「오늘」의 기준. `null`이면 지난 날짜를 보지 않는다 (브라우저의 `includePast`). */
-  now: Civil | null;
   level?: AutoRegisterLevel;
 }
 
@@ -145,9 +142,17 @@ export function evaluateAutoRegister(input: AutoRegisterInput): AutoRegisterVerd
   const at = when === null ? null : new Date(when.length === 10 ? `${when}T00:00Z` : `${when}Z`);
   if (at === null || Number.isNaN(at.getTime())) {
     blockers.push("날짜가 없음");
-  } else if (input.now !== null && diffDays(at, startOfDay(input.now)) < 0) {
-    blockers.push("이미 지난 날짜");
   }
+  // 지난 날짜라는 이유만으로는 막지 않는다.
+  //
+  // 예전에는 막았다. 그랬더니 「8월 28일 15:20 2학기 교무회의」처럼 조금도 애매하지 않은
+  // 일정이, 하루 지났다는 이유만으로 전부 검토함에 쌓였다 — 실제 쪽지 38건 가운데 34건이
+  // 이 조건 하나에 걸렸고 그중 7건은 다른 조건은 다 통과한 것이었다. 자동으로 정리해 주는
+  // 도구인데 사람이 하나씩 눌러 옮겨야 했다.
+  //
+  // 지난 일정을 캘린더에 넣는 것은 위험한 일이 아니다. 그 날짜 칸에 앉을 뿐이고 화면은
+  // 「지난 일정」으로 접어 둔다. 얼마나 옛것까지 들어올지는 «가져올 기간»이 정한다.
+  // 애매한 것을 막는 일은 나머지 조건들이 계속 맡는다.
 
   const official =
     input.candidateType === "OFFICIAL_EVENT" ||
