@@ -9,6 +9,7 @@ import {
   ambiguityFlagsFor,
   DEFAULT_AUTO_REGISTER_LEVEL,
   evaluateAutoRegister,
+  relatedToUser,
   type AutoRegisterLevel,
 } from "./policy/autoRegister.js";
 import { createFingerprintKey, messageFingerprint, scheduleFingerprint } from "./text/fingerprint.js";
@@ -238,7 +239,7 @@ export async function runPipeline(files: string[], options: PipelineOptions = {}
             relationType: base.relationType,
             confidence: base.confidence,
             isOptional: verdict.signals.isOptional,
-            related: verdict.signals.matchesRole || verdict.signals.allStaff,
+            related: relatedToUser(verdict.signals),
             dateRule: date.rule,
             now,
             level: autoRegisterLevel,

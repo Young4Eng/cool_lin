@@ -1,6 +1,6 @@
 {
   "$comment": "위젯 연동용 출력 견본. 합성 golden set으로 만들어 실제 개인정보가 없다. startAt/endAt/dueAt 에는 시간대 표시가 없으며 Asia/Seoul 벽시계 값이다.",
-  "generatedAt": "2026-08-28T12:55:13.167Z",
+  "generatedAt": "2026-08-28T13:20:51.304Z",
   "referenceDate": "2026-08-28",
   "role": {
     "homeroom": true,
@@ -15,22 +15,22 @@
   },
   "stats": {
     "filesRead": 1,
-    "rowsRead": 29,
+    "rowsRead": 32,
     "outOfWindow": 0,
     "quotedOnly": 1,
     "duplicates": 0,
-    "mergedCandidates": 0,
+    "mergedCandidates": 1,
     "quarantined": 3,
     "noDate": 5,
     "pastDate": 1,
-    "messagesProcessed": 28,
-    "candidates": 21,
-    "autoRegisterEligible": 5
+    "messagesProcessed": 31,
+    "candidates": 23,
+    "autoRegisterEligible": 10
   },
   "candidates": [
     {
-      "id": "c55d0d8b-f859-4ffd-97a7-572b6495bd66",
-      "messageId": "9e36e63b1093cc8547882118eea8b05f",
+      "id": "e4702e19-48ee-4ac8-aaf9-555e45f8e01c",
+      "messageId": "c5ae5c69b453f7a0754a45e6aaefc124",
       "proposedTitle": "2학기 교무회의",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-08-28T15:20",
@@ -55,15 +55,15 @@
       "confidenceBand": "높음",
       "relationType": "new",
       "ambiguityFlags": [],
-      "sourceGroupId": "9e36e63b1093cc8547882118eea8b05f",
+      "sourceGroupId": "c5ae5c69b453f7a0754a45e6aaefc124",
       "messageSentAt": "2026/08/27 09:10:00 (목)",
       "counterpart": "교무부장",
       "autoRegisterEligible": true,
       "autoRegisterBlockers": []
     },
     {
-      "id": "364bcb0d-9431-433a-b067-6373ad904b7d",
-      "messageId": "f796f57d0b527f7137f39b2cf7cea64c",
+      "id": "151e43d8-44d4-4b20-818e-1e6a78e4104e",
+      "messageId": "5f9eb968476702eeeaa25d600c226431",
       "proposedTitle": "연수 안내",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-09-04",
@@ -91,7 +91,7 @@
       "ambiguityFlags": [
         "날짜·요일 불일치"
       ],
-      "sourceGroupId": "f796f57d0b527f7137f39b2cf7cea64c",
+      "sourceGroupId": "5f9eb968476702eeeaa25d600c226431",
       "messageSentAt": "2026/08/24 10:00:00 (월)",
       "counterpart": "연구부장",
       "autoRegisterEligible": false,
@@ -100,8 +100,8 @@
       ]
     },
     {
-      "id": "d66bc3d8-b0e9-4aa7-a595-6ff3e8b76af1",
-      "messageId": "bc5bb7e1f5c4ab8476da6ee2da0106ab",
+      "id": "21c6b5b5-1fe2-4786-9f58-19358e028d30",
+      "messageId": "86d2da2e9b5c971eb9dae94a184d82cb",
       "proposedTitle": "건강검진 안내",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-08-28",
@@ -126,15 +126,15 @@
       "confidenceBand": "검토 필요",
       "relationType": "new",
       "ambiguityFlags": [],
-      "sourceGroupId": "bc5bb7e1f5c4ab8476da6ee2da0106ab",
+      "sourceGroupId": "86d2da2e9b5c971eb9dae94a184d82cb",
       "messageSentAt": "2026/08/27 08:30:00 (목)",
       "counterpart": "보건",
       "autoRegisterEligible": true,
       "autoRegisterBlockers": []
     },
     {
-      "id": "44a73593-0b29-45d0-a039-0d380b0a27b3",
-      "messageId": "705f8f4c551ab536838cd7f8be954ba7",
+      "id": "34777a58-a6eb-4974-a300-e1ae6c56633a",
+      "messageId": "05c40a0e66e3dfe05a5ab7cd70c6fe82",
       "proposedTitle": "제출 안내",
       "candidateType": "DEADLINE",
       "startAt": null,
@@ -158,17 +158,15 @@
       "confidenceBand": "검토 필요",
       "relationType": "new",
       "ambiguityFlags": [],
-      "sourceGroupId": "705f8f4c551ab536838cd7f8be954ba7",
+      "sourceGroupId": "05c40a0e66e3dfe05a5ab7cd70c6fe82",
       "messageSentAt": "2026/08/27 08:30:00 (목)",
       "counterpart": "교무부장",
-      "autoRegisterEligible": false,
-      "autoRegisterBlockers": [
-        "나와 관련 있다고 보기 어려움"
-      ]
+      "autoRegisterEligible": true,
+      "autoRegisterBlockers": []
     },
     {
-      "id": "669cc65a-9564-4db0-98f4-74dc754f69e0",
-      "messageId": "a5ba5e05d98ca2a28fa1ee8cbf7f9570",
+      "id": "84a6c29c-73c1-4f27-b801-d749045420b8",
+      "messageId": "89f3ed78108add59bf17b1f0fa657689",
       "proposedTitle": "훈련 안내",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-08-28T14:00",
@@ -193,15 +191,15 @@
       "confidenceBand": "높음",
       "relationType": "new",
       "ambiguityFlags": [],
-      "sourceGroupId": "a5ba5e05d98ca2a28fa1ee8cbf7f9570",
+      "sourceGroupId": "89f3ed78108add59bf17b1f0fa657689",
       "messageSentAt": "2026/08/28 07:50:00 (금)",
       "counterpart": "체육안전부장",
       "autoRegisterEligible": true,
       "autoRegisterBlockers": []
     },
     {
-      "id": "0c62ff3c-1db4-485b-a57f-ba0389940555",
-      "messageId": "b0887d16818f1fd848fcedc727a859bf",
+      "id": "eee4f42b-4389-4cc6-beb8-96d18f1a8d0c",
+      "messageId": "0b2cf5f7c16228772ccb6fffd6553576",
       "proposedTitle": "출석부 제출",
       "candidateType": "DEADLINE",
       "startAt": null,
@@ -228,18 +226,17 @@
       "ambiguityFlags": [
         "요일만 적힘"
       ],
-      "sourceGroupId": "b0887d16818f1fd848fcedc727a859bf",
+      "sourceGroupId": "0b2cf5f7c16228772ccb6fffd6553576",
       "messageSentAt": "2026/08/27 11:00:00 (목)",
       "counterpart": "체육부",
       "autoRegisterEligible": false,
       "autoRegisterBlockers": [
-        "확인 필요: 요일만 적힘",
-        "나와 관련 있다고 보기 어려움"
+        "확인 필요: 요일만 적힘"
       ]
     },
     {
-      "id": "3a685e9c-4dbe-427c-924a-309e200a9670",
-      "messageId": "01bac893f4d0c902488bbc0e11821d43",
+      "id": "985e5ce7-2a7b-457b-a09e-8d304d7798e6",
+      "messageId": "d1332eb0d00632f19af9639f94c45f4f",
       "proposedTitle": "협의회 안내",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-09-01",
@@ -265,18 +262,17 @@
       "ambiguityFlags": [
         "요일만 적힘"
       ],
-      "sourceGroupId": "01bac893f4d0c902488bbc0e11821d43",
+      "sourceGroupId": "d1332eb0d00632f19af9639f94c45f4f",
       "messageSentAt": "2026/08/27 11:00:00 (목)",
       "counterpart": "학년부장",
       "autoRegisterEligible": false,
       "autoRegisterBlockers": [
-        "확인 필요: 요일만 적힘",
-        "나와 관련 있다고 보기 어려움"
+        "확인 필요: 요일만 적힘"
       ]
     },
     {
-      "id": "f68eeccb-22df-4894-9486-0345f247875e",
-      "messageId": "de5ece72ba6f2f180197335db4b81363",
+      "id": "ab0ee6fd-de4f-4b73-a71f-a2ab31de6067",
+      "messageId": "e749f969c02f1b6430f04171d8d69a71",
       "proposedTitle": "회의 안내",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-08-31",
@@ -300,17 +296,15 @@
       "confidenceBand": "검토 필요",
       "relationType": "new",
       "ambiguityFlags": [],
-      "sourceGroupId": "de5ece72ba6f2f180197335db4b81363",
+      "sourceGroupId": "e749f969c02f1b6430f04171d8d69a71",
       "messageSentAt": "2026/08/27 13:00:00 (목)",
       "counterpart": "교무부장",
-      "autoRegisterEligible": false,
-      "autoRegisterBlockers": [
-        "나와 관련 있다고 보기 어려움"
-      ]
+      "autoRegisterEligible": true,
+      "autoRegisterBlockers": []
     },
     {
-      "id": "4271a368-7310-4054-98c6-9b77771b6730",
-      "messageId": "a29daa9503f291e4cfa417fb9333de4d",
+      "id": "275aea46-e26f-431c-ac2d-a9efb1baaac5",
+      "messageId": "d43a0287eeec6fc84adc79f78f5fa20f",
       "proposedTitle": "계기교육 안내",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-08-28",
@@ -335,7 +329,7 @@
       "ambiguityFlags": [
         "교시표 미설정"
       ],
-      "sourceGroupId": "a29daa9503f291e4cfa417fb9333de4d",
+      "sourceGroupId": "d43a0287eeec6fc84adc79f78f5fa20f",
       "messageSentAt": "2026/08/27 09:00:00 (목)",
       "counterpart": "학년부장",
       "autoRegisterEligible": false,
@@ -344,8 +338,8 @@
       ]
     },
     {
-      "id": "02e2b4d7-b4e2-46cd-84b8-91fc5077302e",
-      "messageId": "ddadf3bb88a914ba8b5d1df55157b395",
+      "id": "559e1b76-a0aa-4924-9b8d-3a492b20d55a",
+      "messageId": "75e07fc47e8d67080474074f00502861",
       "proposedTitle": "지필평가 일정",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-09-01",
@@ -370,15 +364,15 @@
       "confidenceBand": "검토 필요",
       "relationType": "new",
       "ambiguityFlags": [],
-      "sourceGroupId": "ddadf3bb88a914ba8b5d1df55157b395",
+      "sourceGroupId": "75e07fc47e8d67080474074f00502861",
       "messageSentAt": "2026/08/27 09:00:00 (목)",
       "counterpart": "교육연구부장",
       "autoRegisterEligible": true,
       "autoRegisterBlockers": []
     },
     {
-      "id": "198f345a-4975-456f-8aa5-72378f3bf784",
-      "messageId": "a809c6d11fc38f8970a7dde730be5a95",
+      "id": "ee096c06-0b6d-4582-b045-649504854817",
+      "messageId": "d032b0a289b3b8d460dd50fd9ada66c5",
       "proposedTitle": "협의회",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-08-31T15:00",
@@ -404,18 +398,17 @@
       "ambiguityFlags": [
         "오전·오후 불명확"
       ],
-      "sourceGroupId": "a809c6d11fc38f8970a7dde730be5a95",
+      "sourceGroupId": "d032b0a289b3b8d460dd50fd9ada66c5",
       "messageSentAt": "2026/08/27 09:00:00 (목)",
       "counterpart": "교무부장",
       "autoRegisterEligible": false,
       "autoRegisterBlockers": [
-        "확인 필요: 오전·오후 불명확",
-        "나와 관련 있다고 보기 어려움"
+        "확인 필요: 오전·오후 불명확"
       ]
     },
     {
-      "id": "10ee9996-7519-43ec-9df9-ba2fd32e3bcf",
-      "messageId": "75b4b54f02f78aa4b3236a270024ee5c",
+      "id": "c42a29cd-3035-4ac8-a4bf-e604ba9b5e26",
+      "messageId": "c8d2db7d0113ebdac9f4ca7129867c1d",
       "proposedTitle": "개학식 안내",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2027-01-05",
@@ -442,18 +435,17 @@
       "ambiguityFlags": [
         "연도 생략"
       ],
-      "sourceGroupId": "75b4b54f02f78aa4b3236a270024ee5c",
+      "sourceGroupId": "c8d2db7d0113ebdac9f4ca7129867c1d",
       "messageSentAt": "2026/08/27 09:00:00 (목)",
       "counterpart": "교무부장",
       "autoRegisterEligible": false,
       "autoRegisterBlockers": [
-        "확인 필요: 연도 생략",
-        "나와 관련 있다고 보기 어려움"
+        "확인 필요: 연도 생략"
       ]
     },
     {
-      "id": "fb7459ce-5a8d-47a6-91a8-5de443311fd4",
-      "messageId": "eba9c493061e51a43365eb43a083e4e4",
+      "id": "4e9dd309-837a-4730-b58e-2bd2973072c8",
+      "messageId": "a6c9e70b19f9c005c35bf1353c940577",
       "proposedTitle": "직무연수 안내",
       "candidateType": "OPTIONAL_EVENT",
       "startAt": "2026-09-04",
@@ -480,7 +472,7 @@
       "confidenceBand": "검토 필요",
       "relationType": "new",
       "ambiguityFlags": [],
-      "sourceGroupId": "eba9c493061e51a43365eb43a083e4e4",
+      "sourceGroupId": "a6c9e70b19f9c005c35bf1353c940577",
       "messageSentAt": "2026/08/27 09:00:00 (목)",
       "counterpart": "연구부장",
       "autoRegisterEligible": false,
@@ -490,8 +482,8 @@
       ]
     },
     {
-      "id": "e50c9a5a-9142-4130-9492-23387539979e",
-      "messageId": "7d2f54b15cd24a6fedff63a2405f3d33",
+      "id": "ad76bf26-a893-4cf6-a77c-26e95f305540",
+      "messageId": "38ff10383258d2fc89942bff7e744dfb",
       "proposedTitle": "출장 안내",
       "candidateType": "REFERENCE_NOTICE",
       "startAt": "2026-08-31",
@@ -513,18 +505,85 @@
       "confidenceBand": "낮음",
       "relationType": "new",
       "ambiguityFlags": [],
-      "sourceGroupId": "7d2f54b15cd24a6fedff63a2405f3d33",
+      "sourceGroupId": "38ff10383258d2fc89942bff7e744dfb",
       "messageSentAt": "2026/08/27 12:00:00 (목)",
       "counterpart": "동료 교사",
       "autoRegisterEligible": false,
       "autoRegisterBlockers": [
-        "공식 일정·내 마감이 아님",
+        "공식 일정·내 마감이 아님"
+      ]
+    },
+    {
+      "id": "63157124-5edf-420f-a52e-9ad4e94c78cc",
+      "messageId": "d740ef605cb4bf9b067775f517767750",
+      "proposedTitle": "협의회 안내",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-09-02",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": "2학년",
+      "keywords": [
+        "협의회"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "학교 행사: 협의회",
+        "내 역할과 맞음 (2학년)"
+      ],
+      "confidence": 0.8,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "d740ef605cb4bf9b067775f517767750",
+      "messageSentAt": "2026/08/27 09:00:00 (목)",
+      "counterpart": "연구부장",
+      "autoRegisterEligible": true,
+      "autoRegisterBlockers": []
+    },
+    {
+      "id": "f62f9244-bf8c-41e0-9cd0-90803c18e40f",
+      "messageId": "c5d5742fb1b848042afeb30c175589b1",
+      "proposedTitle": "협의회 안내",
+      "candidateType": "PERSONAL_TASK",
+      "startAt": "2026-08-28",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": "참석",
+      "targetText": "담임, 3학년",
+      "keywords": [
+        "협의회",
+        "참석"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "내가 할 일: 참석",
+        "내 역할과 맞음 (담임, 3학년)",
+        "내가 해야 할 일"
+      ],
+      "confidence": 0.84,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "c5d5742fb1b848042afeb30c175589b1",
+      "messageSentAt": "2026/08/27 09:00:00 (목)",
+      "counterpart": "교무부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
         "나와 관련 있다고 보기 어려움"
       ]
     },
     {
-      "id": "3ebd6ca7-6425-48cc-bbc6-22e0bc281fc8",
-      "messageId": "0e7baf1aae3349823c0615b851c9e468",
+      "id": "5c7b9cfc-796a-4694-9283-993c7aade121",
+      "messageId": "dbd9412d326d6e89352092b2691a2ca4",
       "proposedTitle": "회의 취소",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-08-31",
@@ -549,18 +608,17 @@
       "confidenceBand": "검토 필요",
       "relationType": "cancel",
       "ambiguityFlags": [],
-      "sourceGroupId": "0e7baf1aae3349823c0615b851c9e468",
+      "sourceGroupId": "dbd9412d326d6e89352092b2691a2ca4",
       "messageSentAt": "2026/08/27 12:00:00 (목)",
       "counterpart": "교무부장",
       "autoRegisterEligible": false,
       "autoRegisterBlockers": [
-        "변경·취소 제안",
-        "나와 관련 있다고 보기 어려움"
+        "변경·취소 제안"
       ]
     },
     {
-      "id": "208f33e4-a036-4863-86da-ce1a8d54ac0c",
-      "messageId": "9ba1325c98e00aa28f9584fc63835fe5",
+      "id": "35717e14-07ce-4a67-81c2-397d50c0cde0",
+      "messageId": "6af4ef83d0c3ed114e2bb570759088a6",
       "proposedTitle": "취소 안내",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-08-31",
@@ -584,19 +642,18 @@
       "ambiguityFlags": [
         "변경 대상 불명확"
       ],
-      "sourceGroupId": "9ba1325c98e00aa28f9584fc63835fe5",
+      "sourceGroupId": "6af4ef83d0c3ed114e2bb570759088a6",
       "messageSentAt": "2026/08/27 12:00:00 (목)",
       "counterpart": "교무부장",
       "autoRegisterEligible": false,
       "autoRegisterBlockers": [
         "확인 필요: 변경 대상 불명확",
-        "변경·취소 제안",
-        "나와 관련 있다고 보기 어려움"
+        "변경·취소 제안"
       ]
     },
     {
-      "id": "d85a29ae-5235-4a0d-941b-144a44a2f6c0",
-      "messageId": "5080a831b7a6d47cffdf37d839d79482",
+      "id": "47021f79-336e-40d1-b2b0-7860d807c6dc",
+      "messageId": "307663f9645623c9aaf97bf5dc467591",
       "proposedTitle": "시간 변경",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-09-01T15:20",
@@ -621,18 +678,17 @@
       "confidenceBand": "검토 필요",
       "relationType": "update",
       "ambiguityFlags": [],
-      "sourceGroupId": "5080a831b7a6d47cffdf37d839d79482",
+      "sourceGroupId": "307663f9645623c9aaf97bf5dc467591",
       "messageSentAt": "2026/08/27 12:00:00 (목)",
       "counterpart": "교무부장",
       "autoRegisterEligible": false,
       "autoRegisterBlockers": [
-        "변경·취소 제안",
-        "나와 관련 있다고 보기 어려움"
+        "변경·취소 제안"
       ]
     },
     {
-      "id": "f0e8a95a-2150-4bde-8993-569b48b32cff",
-      "messageId": "848839921b209d79897347447f2f6045",
+      "id": "6c7c6779-fa0d-4037-b008-722a71253f17",
+      "messageId": "7157569a180341d9b0fffb10bc11ff00",
       "proposedTitle": "폭염 안내",
       "candidateType": "URGENT_NOTICE",
       "startAt": "2026-08-28",
@@ -654,18 +710,17 @@
       "confidenceBand": "낮음",
       "relationType": "new",
       "ambiguityFlags": [],
-      "sourceGroupId": "848839921b209d79897347447f2f6045",
+      "sourceGroupId": "7157569a180341d9b0fffb10bc11ff00",
       "messageSentAt": "2026/08/28 08:00:00 (금)",
       "counterpart": "체육안전부장",
       "autoRegisterEligible": false,
       "autoRegisterBlockers": [
-        "공식 일정·내 마감이 아님",
-        "나와 관련 있다고 보기 어려움"
+        "공식 일정·내 마감이 아님"
       ]
     },
     {
-      "id": "697dbdcb-5d16-4389-9116-438ff339f34d",
-      "messageId": "14953741f4d0ec1e672d345d62a1a9b7",
+      "id": "b82b1c2c-c949-486a-ac11-57f7fa9ceb1b",
+      "messageId": "ab6ca9c35007045e55d0b63b6c7430e3",
       "proposedTitle": "체험학습 안내",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-09-16",
@@ -690,15 +745,15 @@
       "confidenceBand": "검토 필요",
       "relationType": "new",
       "ambiguityFlags": [],
-      "sourceGroupId": "14953741f4d0ec1e672d345d62a1a9b7",
+      "sourceGroupId": "ab6ca9c35007045e55d0b63b6c7430e3",
       "messageSentAt": "2026/08/27 12:00:00 (목)",
       "counterpart": "학년부장",
       "autoRegisterEligible": true,
       "autoRegisterBlockers": []
     },
     {
-      "id": "74cbc32d-dd4f-4ea1-999e-677f25c211a7",
-      "messageId": "a9a9b1c712de913d9a75c921063cd814",
+      "id": "e73040e7-e9fa-4cd1-a4b6-93021512c1e4",
+      "messageId": "841009ea6f5164aa8b56bb88ae3d1337",
       "proposedTitle": "9월 일정 안내",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-09-02",
@@ -721,17 +776,15 @@
       "confidenceBand": "검토 필요",
       "relationType": "new",
       "ambiguityFlags": [],
-      "sourceGroupId": "a9a9b1c712de913d9a75c921063cd814",
+      "sourceGroupId": "841009ea6f5164aa8b56bb88ae3d1337",
       "messageSentAt": "2026/08/27 12:00:00 (목)",
       "counterpart": "교무부장",
-      "autoRegisterEligible": false,
-      "autoRegisterBlockers": [
-        "나와 관련 있다고 보기 어려움"
-      ]
+      "autoRegisterEligible": true,
+      "autoRegisterBlockers": []
     },
     {
-      "id": "53873567-7eca-4d6c-b94e-e4cdf1ee3a41",
-      "messageId": "a9a9b1c712de913d9a75c921063cd814",
+      "id": "ec1a6942-9017-46b9-9052-efb1274bf8f4",
+      "messageId": "841009ea6f5164aa8b56bb88ae3d1337",
       "proposedTitle": "9월 일정 안내",
       "candidateType": "OFFICIAL_EVENT",
       "startAt": "2026-09-04",
@@ -754,13 +807,11 @@
       "confidenceBand": "검토 필요",
       "relationType": "new",
       "ambiguityFlags": [],
-      "sourceGroupId": "a9a9b1c712de913d9a75c921063cd814",
+      "sourceGroupId": "841009ea6f5164aa8b56bb88ae3d1337",
       "messageSentAt": "2026/08/27 12:00:00 (목)",
       "counterpart": "교무부장",
-      "autoRegisterEligible": false,
-      "autoRegisterBlockers": [
-        "나와 관련 있다고 보기 어려움"
-      ]
+      "autoRegisterEligible": true,
+      "autoRegisterBlockers": []
     }
   ]
 }

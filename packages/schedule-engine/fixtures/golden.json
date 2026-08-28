@@ -31,12 +31,12 @@
     },
     {
       "id": "rel-02",
-      "note": "모레 — 발송일 기준 +2",
+      "note": "모레 — 발송일 기준 +2. 나에게 온 제출 요청이므로 자동등록한다",
       "sentAt": "2026/08/27 08:30:00 (목)",
       "counterpart": "교무부장",
       "title": "제출 안내",
       "body": "모레까지 학급 명렬표를 제출해 주시기 바랍니다.",
-      "expect": { "type": "DEADLINE", "dueAt": "2026-08-29", "flags": [], "autoRegister": false }
+      "expect": { "type": "DEADLINE", "dueAt": "2026-08-29", "flags": [], "autoRegister": true }
     },
     {
       "id": "rel-03",
@@ -67,12 +67,12 @@
     },
     {
       "id": "wk-01",
-      "note": "다음 주 + 요일",
+      "note": "다음 주 + 요일. 대상이 적혀 있지 않으므로 나에게 온 쪽지로 본다",
       "sentAt": "2026/08/27 13:00:00 (목)",
       "counterpart": "교무부장",
       "title": "회의 안내",
       "body": "다음 주 월요일 부장 회의가 있습니다.",
-      "expect": { "type": "OFFICIAL_EVENT", "startAt": "2026-08-31", "flags": [], "autoRegister": false }
+      "expect": { "type": "OFFICIAL_EVENT", "startAt": "2026-08-31", "flags": [], "autoRegister": true }
     },
     {
       "id": "per-01",
@@ -201,6 +201,33 @@
       "expect": { "type": null, "autoRegister": false }
     },
     {
+      "id": "target-01",
+      "note": "대상이 안 적힌 학교 행사. 시각이 없어도 등록한다",
+      "sentAt": "2026/08/27 09:00:00 (목)",
+      "counterpart": "연구부장",
+      "title": "협의회 안내",
+      "body": "9월 2일 2학년 학년 협의회가 있습니다.",
+      "expect": { "type": "OFFICIAL_EVENT", "startAt": "2026-09-02", "flags": [], "autoRegister": true }
+    },
+    {
+      "id": "target-02",
+      "note": "내 학년이 아닌 담임 공지는 자동등록하지 않는다 (담임 한 갈래만 맞는 경우)",
+      "sentAt": "2026/08/27 09:00:00 (목)",
+      "counterpart": "교무부장",
+      "title": "협의회 안내",
+      "body": "내일 3학년 담임 선생님들은 학년 협의회에 참석해 주세요.",
+      "expect": { "startAt": "2026-08-28", "autoRegister": false }
+    },
+    {
+      "id": "target-03",
+      "note": "내 학년 담임 공지는 자동등록한다",
+      "sentAt": "2026/08/27 09:00:00 (목)",
+      "counterpart": "교무부장",
+      "title": "협의회 안내",
+      "body": "내일 2학년 담임 선생님들은 학년 협의회에 참석해 주세요.",
+      "expect": { "startAt": "2026-08-28", "autoRegister": true }
+    },
+    {
       "id": "rel-cancel-01",
       "note": "취소 안내는 새 일정이 아니다",
       "sentAt": "2026/08/27 12:00:00 (목)",
@@ -252,7 +279,7 @@
       "counterpart": "교무부장",
       "title": "9월 일정 안내",
       "body": "9월 2일 학년 협의회가 있습니다.\n9월 4일 공개수업이 예정되어 있습니다.",
-      "expect": { "candidateCount": 2, "autoRegister": false }
+      "expect": { "candidateCount": 2, "autoRegister": true }
     },
     {
       "id": "quote-01",

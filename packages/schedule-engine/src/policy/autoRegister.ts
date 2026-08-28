@@ -28,10 +28,10 @@ export const AUTO_REGISTER_LEVELS: readonly AutoRegisterLevel[] = [
  * 단계가 바꾸는 유일한 값.
  *
  * `분명한 일정까지`가 0인 것은 문턱을 없앤 것이 아니라 **안전 조건만으로 충분**하다는 뜻이다
- * (PRD 9장 「위 조건」). 안전 조건을 모두 통과한 후보의 점수는 구조적으로 0.80 아래로
- * 내려갈 수 없다 — 날짜만 0.26 + 행사/행동 0.26 + 내 역할 0.20 + 기본 0.08 = 0.80.
+ * (PRD 9장 「위 조건」). 안전 조건을 모두 통과한 후보의 점수는 구조적으로 0.72 아래로
+ * 내려갈 수 없다 — 날짜만 0.26 + 행사/행동 0.26 + 대상 0.12 + 기본 0.08 = 0.72.
  * 그래서 여기에 0.6 같은 값을 따로 두어도 아무 후보도 걸러내지 못한다.
- * (`test/policy.test.ts` 의 「안전 조건을 통과한 후보는 0.80 아래로 내려가지 않는다」 참고)
+ * (`test/policy.test.ts` 의 「안전 조건을 통과한 후보는 0.72 아래로 내려가지 않는다」 참고)
  */
 export const AUTO_REGISTER_THRESHOLD: Record<AutoRegisterLevel, number> = {
   "아주 확실한 것만": 0.9,
@@ -70,6 +70,34 @@ export function ambiguityFlagsFor(date: DateMention, signals: SentenceSignals): 
   }
 
   return flags;
+}
+
+/**
+ * 이 일정이 나와 관련 있는가 (PRD 9장 「일정 대상이 사용자와 관련 있다고 판단됨」).
+ *
+ * 쪽지는 애초에 **나에게 온 것**이다. 그래서 대상이 아예 적혀 있지 않으면 나와 관련 있다고
+ * 본다 — 「모레까지 학급 명렬표를 제출해 주시기 바랍니다」는 «전 교직원»이라는 말이 없어도
+ * 나에게 온 내 일이다.
+ *
+ * 막아야 하는 것은 «대상이 적혀 있는데 그게 내가 아닌» 경우다. 3학년 담임에게만 해당하는
+ * 공지가 1·2학년 담임 캘린더에 저절로 들어가면 안 된다.
+ *
+ * | 쪽지에 적힌 대상 | 내 역할과 | 판정 |
+ * |---|---|---|
+ * | `전 교직원`·`필수` | — | 관련 있음 |
+ * | `2학년 담임` | 맞음 | 관련 있음 |
+ * | `3학년 담임` | 학년이 다름 | **관련 없음 — 사람이 확인** |
+ * | `담임` (학년 없음) | 나는 담임 | 관련 있음 |
+ * | (아무 대상도 안 적힘) | — | 관련 있음 (나에게 온 쪽지다) |
+ */
+export function relatedToUser(signals: SentenceSignals): boolean {
+  // 「전 교직원」이면 학년·담임 여부를 따지지 않는다.
+  if (signals.allStaff) return true;
+  // 대상이 적혀 있는데 내가 아니면 여기서 막힌다. 「담임」 한 갈래가 맞더라도
+  // 학년이 어긋나면(「3학년 담임」) 막는다.
+  if (signals.targetMismatch) return false;
+  if (signals.matchesRole) return true;
+  return signals.target === null;
 }
 
 export interface AutoRegisterInput {

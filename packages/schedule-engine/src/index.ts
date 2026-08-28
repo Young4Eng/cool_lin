@@ -17,6 +17,7 @@ export {
   ambiguityFlagsFor,
   evaluateAutoRegister,
   isAutoRegisterLevel,
+  relatedToUser,
   AUTO_REGISTER_LEVELS,
   AUTO_REGISTER_THRESHOLD,
   DEFAULT_AUTO_REGISTER_LEVEL,

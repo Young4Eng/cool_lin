@@ -55,6 +55,8 @@ export interface SentenceSignals {
   allStaff: boolean;
   /** 사용자 역할과 맞는가 */
   matchesRole: boolean;
+  /** 대상이 적혀 있는데 내가 아닌가 (예: 내가 1·2학년 담임인데 「3학년 담임」 공지) */
+  targetMismatch: boolean;
   /** 캘린더에 넣을 핵심 일정 단어 */
   keywords: string[];
 }
@@ -109,17 +111,35 @@ function eventPhrase(sentence: string, entry: LexiconEntry): string | null {
   return phrase.length >= 2 && phrase.length <= 20 ? phrase : null;
 }
 
-function findTarget(text: string, role: UserRole): { target: string | null; matches: boolean } {
+interface TargetVerdict {
+  target: string | null;
+  matches: boolean;
+  /**
+   * 대상이 **적혀 있는데 내가 아닌** 경우.
+   *
+   * `matches` 만으로는 「3학년 담임 선생님들은」을 걸러내지 못한다. 내가 담임이기만 하면
+   * 「담임」 한 갈래가 맞아 `matches` 가 켜지고, 학년이 다르다는 사실이 묻힌다.
+   * 그래서 갈래별로 «어긋났다»를 따로 센다.
+   */
+  mismatch: boolean;
+}
+
+function findTarget(text: string, role: UserRole): TargetVerdict {
   const targets: string[] = [];
   let matches = false;
+  let mismatch = false;
 
-  if (OBLIGATION_ALL_STAFF.test(text)) {
+  const allStaff = OBLIGATION_ALL_STAFF.test(text);
+  if (allStaff) {
     targets.push("전 교직원");
     matches = true;
   }
+
   if (TARGET_HOMEROOM.test(text)) {
     targets.push("담임");
     if (role.homeroom) matches = true;
+    // 역할 설정을 아직 안 했으면(undefined) 판단하지 않는다 (기술계획서 8.9).
+    else if (role.homeroom === false) mismatch = true;
   }
 
   const grades = new Set<number>();
@@ -129,13 +149,19 @@ function findTarget(text: string, role: UserRole): { target: string | null; matc
   }
   if (grades.size > 0) {
     targets.push([...grades].sort().map((g) => `${g}학년`).join("·"));
-    if (role.grades?.some((g) => grades.has(g))) matches = true;
+    if (role.grades !== undefined && role.grades.length > 0) {
+      if (role.grades.some((g) => grades.has(g))) matches = true;
+      else mismatch = true;
+    }
   }
 
   if (role.interests?.some((k) => k.length > 0 && text.includes(k))) matches = true;
   if (role.departments?.some((d) => d.length > 0 && text.includes(d))) matches = true;
 
-  return { target: targets.length > 0 ? targets.join(", ") : null, matches };
+  // 「전 교직원」이라고 적혀 있으면 학년·담임 여부와 무관하게 나도 대상이다.
+  if (allStaff) mismatch = false;
+
+  return { target: targets.length > 0 ? targets.join(", ") : null, matches, mismatch };
 }
 
 export function readSignals(sentence: string, body: string, role: UserRole): SentenceSignals {
@@ -163,7 +189,7 @@ export function readSignals(sentence: string, body: string, role: UserRole): Sen
   const recurrenceVague = RECURRENCE_VAGUE.some((r) => r.test(sentence));
   if (recurrenceRule !== null) relation = "recurrence";
 
-  const { target, matches } = findTarget(scope, role);
+  const { target, matches, mismatch } = findTarget(scope, role);
   const locationMatch = sentence.match(LOCATION_TERMS);
 
   // 캘린더에 넣을 «핵심 일정 단어».
@@ -194,6 +220,7 @@ export function readSignals(sentence: string, body: string, role: UserRole): Sen
     target,
     allStaff: OBLIGATION_ALL_STAFF.test(scope) || OBLIGATION_MUST.test(scope),
     matchesRole: matches,
+    targetMismatch: mismatch,
     keywords: [...new Set(keywords)].slice(0, 5),
   };
 }

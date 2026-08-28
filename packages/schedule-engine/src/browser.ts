@@ -19,6 +19,7 @@ import {
   ambiguityFlagsFor,
   DEFAULT_AUTO_REGISTER_LEVEL,
   evaluateAutoRegister,
+  relatedToUser,
   type AutoRegisterLevel,
 } from "./policy/autoRegister.js";
 import { normalizeBody } from "./text/normalize.js";
@@ -199,7 +200,7 @@ export function extractFromMessage(
         relationType: base.relationType,
         confidence: base.confidence,
         isOptional: verdict.signals.isOptional,
-        related: verdict.signals.matchesRole || verdict.signals.allStaff,
+        related: relatedToUser(verdict.signals),
         dateRule: date.rule,
         now: today,
         level: autoRegisterLevel,
