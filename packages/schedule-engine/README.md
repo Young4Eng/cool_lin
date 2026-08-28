@@ -10,9 +10,16 @@
 npm install
 npm run analyze    # 실제 파일을 훑어 표현 빈도 통계 → 규칙 도출 근거
 npm run extract    # 실제 파일에서 일정 후보 뽑기
+npm run trace      # 한 문장이 어떻게 후보가 되는지 단계별로 보기
+npm run sample     # 위젯 연동용 출력 견본 만들기 (개인정보 없음)
 npm run eval       # 합성 golden set 회귀 평가
 npm test           # 단위 테스트
 ```
+
+문서
+- **[RULES.md](./RULES.md)** — 쪽지에서 무엇을 보고 할 일을 뽑는지 (규칙 전체)
+- **[EVALUATION.md](./EVALUATION.md)** — 평가 지표의 분모와 제외 기준
+- 이 문서 — 연동 방법과 JSON 계약
 
 ---
 
@@ -42,9 +49,19 @@ npm test           # 단위 테스트
 
 `Candidate` 배열 하나가 전부다. 위젯은 이 JSON만 알면 된다.
 
+**견본 파일이 이미 저장소에 있다.** 실제 엑셀 없이도 위젯을 붙여 볼 수 있다.
+
+```
+fixtures/sample-output.json   # 합성 데이터로 만든 후보 20건. 개인정보 없음
+```
+
+실제 파일에서 뽑으려면:
+
 ```bash
 npm run extract -- --today=2026-08-28 --json=candidates.json
 ```
+
+⚠ 실제 파일로 만든 JSON에는 학생·학부모 실명이 들어갈 수 있다. **커밋하지 않는다.**
 
 ```ts
 interface Candidate {

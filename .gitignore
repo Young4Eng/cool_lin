@@ -11,3 +11,6 @@ coolexcel/
 *.xlsx
 !fixtures/**/*.xls
 새 폴더/
+# 실제 데이터로 만든 추출 결과 (실명 포함 가능)
+candidates.json
+*.candidates.json

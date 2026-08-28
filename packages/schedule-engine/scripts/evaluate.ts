@@ -6,12 +6,13 @@
  * fixtures/golden.json 을 SpreadsheetML 워크북으로 만들어 파이프라인 전체를 통과시킨다.
  * 파서까지 함께 검증하기 위해서다. 기준 미달이면 종료 코드 1로 끝난다 (PRD 17장).
  */
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { runPipeline } from "../src/pipeline.js";
 import { civil } from "../src/dates/civil.js";
 import type { Candidate } from "../src/types.js";
+import { loadGolden, writeGoldenWorkbook } from "./_golden-workbook.js";
 
 interface GoldenCase {
   id: string;
@@ -35,36 +36,9 @@ interface GoldenCase {
   };
 }
 
-const goldenPath = path.resolve("fixtures/golden.json");
-const golden = JSON.parse(await readFile(goldenPath, "utf8")) as {
-  referenceDate: string;
-  cases: GoldenCase[];
-};
-
-const esc = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-const cell = (v: string) => `<Cell><Data ss:Type="String">${esc(v)}</Data></Cell>`;
-const row = (cells: string[]) => `<Row>${cells.map(cell).join("")}</Row>`;
-
-const header = ["구분", "보낸사람", "제목", "날짜/시간", "내용", "첨부파일"];
-const body = golden.cases
-  .map((c) => row(["일반 메시지", c.counterpart, c.title, c.sentAt, c.body, ""]))
-  .join("\n");
-
-const workbook = `<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
- <Worksheet ss:Name="받은메시지"><Table>
-${row(header)}
-${body}
- </Table></Worksheet>
-</Workbook>`;
+const golden = (await loadGolden()) as unknown as { referenceDate: string; cases: GoldenCase[] };
 
 const dir = await mkdtemp(path.join(tmpdir(), "cool-lin-golden-"));
-const file = path.join(dir, "golden.xls");
-await writeFile(file, "﻿" + workbook, "utf8");
 
 const ref = golden.referenceDate;
 const now = civil(Number(ref.slice(0, 4)), Number(ref.slice(5, 7)), Number(ref.slice(8, 10)));
@@ -73,17 +47,7 @@ const now = civil(Number(ref.slice(0, 4)), Number(ref.slice(5, 7)), Number(ref.s
 // 한 번에 돌리면 중복 제거가 케이스 사이에 걸쳐 작동한다.
 const results = new Map<string, Candidate[]>();
 for (const c of golden.cases) {
-  const single = `<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
- <Worksheet ss:Name="받은메시지"><Table>
-${row(header)}
-${row(["일반 메시지", c.counterpart, c.title, c.sentAt, c.body, ""])}
- </Table></Worksheet>
-</Workbook>`;
-  const one = path.join(dir, `${c.id}.xls`);
-  await writeFile(one, "﻿" + single, "utf8");
+  const one = await writeGoldenWorkbook(path.join(dir, `${c.id}.xls`), [c]);
   const result = await runPipeline([one], {
     now,
     windowDays: 30,

@@ -80,17 +80,60 @@ export interface ClassifyResult {
   signals: SentenceSignals;
 }
 
-const firstMatch = <T extends { term: RegExp; label: string; weight: number }>(
-  text: string,
-  table: T[],
-): { label: string; weight: number } | null => {
-  let best: { label: string; weight: number } | null = null;
+interface LexiconEntry {
+  term: RegExp;
+  label: string;
+  weight: number;
+}
+
+/** 사전에서 가장 무거운 항목 하나를 고른다. */
+const firstMatch = (text: string, table: LexiconEntry[]): LexiconEntry | null => {
+  let best: LexiconEntry | null = null;
   for (const entry of table) {
     if (!entry.term.test(text)) continue;
-    if (best === null || entry.weight > best.weight) best = { label: entry.label, weight: entry.weight };
+    if (best === null || entry.weight > best.weight) best = entry;
   }
   return best;
 };
+
+/**
+ * 행사 이름 앞의 수식어로 받아들일 수 있는 말인가.
+ *
+ * 앞 단어를 무조건 붙이면 «월요일 부장 회의», «진행된 협의회», «일 개학식» 처럼
+ * 날짜 조각과 용언이 제목에 섞인다. 명사형만 받는다.
+ */
+function isUsableModifier(word: string): boolean {
+  if (word.length === 0 || word.length > 8) return false;
+  // «2학기», «1학년», «1차» 는 받는다.
+  if (/^\d{1,2}(?:학기|학년|차)$/.test(word)) return true;
+  // 숫자로 시작하거나 날짜·요일 조각이면 받지 않는다.
+  if (/^\d/.test(word)) return false;
+  if (/^(?:[월화수목금토일]요일|일|월|년|날|오늘|내일|모레|명일|금일|오전|오후|이번|다음|매주|매일|지난)$/.test(word)) {
+    return false;
+  }
+  // 용언 활용형(«진행된», «예정이던», «있는»)은 수식어로 쓰지 않는다.
+  if (/(?:된|던|는|은|한|할|인|고|서|며|나|자|여|어|아)$/.test(word)) return false;
+  return /^[가-힣]{2,8}$/.test(word);
+}
+
+/** 행사 이름 앞에 붙은 수식어까지 살려 «2학기 교무회의» 같은 덩어리를 만든다. */
+function eventPhrase(sentence: string, entry: LexiconEntry): string | null {
+  const m = sentence.match(new RegExp(entry.term.source));
+  if (m?.index === undefined) return null;
+
+  const core = m[0].trim();
+  // 행사 이름 바로 앞의 어절부터 거꾸로 최대 2개까지만 붙인다.
+  const before = sentence.slice(0, m.index).trimEnd().split(/\s+/);
+  const picked: string[] = [];
+  for (let i = before.length - 1; i >= 0 && picked.length < 2; i--) {
+    const word = before[i]!;
+    if (!isUsableModifier(word)) break;
+    picked.unshift(word);
+  }
+
+  const phrase = [...picked, core].join(" ").replace(/\s+/g, " ").trim();
+  return phrase.length >= 2 && phrase.length <= 20 ? phrase : null;
+}
 
 function findTarget(text: string, role: UserRole): { target: string | null; matches: boolean } {
   const targets: string[] = [];
@@ -149,18 +192,16 @@ export function readSignals(sentence: string, body: string, role: UserRole): Sen
   const { target, matches } = findTarget(scope, role);
   const locationMatch = sentence.match(LOCATION_TERMS);
 
+  // 캘린더에 넣을 «핵심 일정 단어».
+  // 본문에 실제로 쓰인 말을 먼저 담고, 사전의 분류 이름은 보조로 붙인다.
+  // («개학식»이 분류 이름 «의식행사»로 바뀌어 버리면 안 된다)
   const keywords: string[] = [];
-  if (event) keywords.push(event.label);
-  if (action) keywords.push(action.label);
-  // 행사 이름 앞에 붙은 수식어까지 살려 «2학기 교무회의» 같은 덩어리를 만든다.
-  for (const e of EVENT_TERMS) {
-    const m = sentence.match(new RegExp(`([가-힣A-Za-z0-9]{1,8}\\s*)?${e.term.source}`));
-    if (m && m[0].trim().length > (event?.label.length ?? 0)) {
-      const phrase = m[0].trim().replace(/\s+/g, " ");
-      if (phrase.length <= 20 && !keywords.includes(phrase)) keywords.unshift(phrase);
-      break;
-    }
+  if (event) {
+    const phrase = eventPhrase(sentence, event);
+    if (phrase !== null) keywords.push(phrase);
+    if (!keywords.includes(event.label)) keywords.push(event.label);
   }
+  if (action && !keywords.includes(action.label)) keywords.push(action.label);
 
   return {
     action,

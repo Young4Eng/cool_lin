@@ -1,0 +1,733 @@
+{
+  "$comment": "위젯 연동용 출력 견본. 합성 golden set으로 만들어 실제 개인정보가 없다. startAt/endAt/dueAt 에는 시간대 표시가 없으며 Asia/Seoul 벽시계 값이다.",
+  "generatedAt": "2026-08-28T10:21:40.813Z",
+  "referenceDate": "2026-08-28",
+  "role": {
+    "homeroom": true,
+    "grades": [
+      1,
+      2
+    ],
+    "interests": [
+      "연수",
+      "평가"
+    ]
+  },
+  "stats": {
+    "filesRead": 1,
+    "rowsRead": 28,
+    "outOfWindow": 0,
+    "quotedOnly": 1,
+    "duplicates": 0,
+    "mergedCandidates": 0,
+    "quarantined": 3,
+    "noDate": 5,
+    "pastDate": 1,
+    "messagesProcessed": 27,
+    "candidates": 20,
+    "autoRegisterEligible": 5
+  },
+  "candidates": [
+    {
+      "id": "1841cd00-ff4b-4eec-ac77-d22c3a44a875",
+      "messageId": "071e1bb30f5158826f1a88c073c36155",
+      "proposedTitle": "2학기 교무회의",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-08-28T15:20",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "exact",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": "강당",
+      "actionText": null,
+      "targetText": "전 교직원",
+      "keywords": [
+        "2학기 교무회의",
+        "회의"
+      ],
+      "reasoning": [
+        "시각까지 분명함",
+        "학교 행사: 회의",
+        "전 교직원·필수 대상"
+      ],
+      "confidence": 0.96,
+      "confidenceBand": "높음",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "071e1bb30f5158826f1a88c073c36155",
+      "messageSentAt": "2026/08/27 09:10:00 (목)",
+      "counterpart": "교무부장",
+      "autoRegisterEligible": true,
+      "autoRegisterBlockers": []
+    },
+    {
+      "id": "a5e38424-4c7f-4d45-9fd4-dc44d214c5fd",
+      "messageId": "2024da76965bfba95b0cf366e51bc793",
+      "proposedTitle": "연수 안내",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-09-04",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [
+        "교직원 연수",
+        "연수"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "학교 행사: 연수",
+        "내 역할과 맞음",
+        "확인 필요: 날짜·요일 불일치"
+      ],
+      "confidence": 0.68,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [
+        "날짜·요일 불일치"
+      ],
+      "sourceGroupId": "2024da76965bfba95b0cf366e51bc793",
+      "messageSentAt": "2026/08/24 10:00:00 (월)",
+      "counterpart": "연구부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "확인 필요: 날짜·요일 불일치"
+      ]
+    },
+    {
+      "id": "993912f9-488d-4959-9bde-3a8f085939e6",
+      "messageId": "8e7f5eb5db8e59dbf781c97939b6c0f2",
+      "proposedTitle": "건강검진 안내",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-08-28",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": "전 교직원, 1학년",
+      "keywords": [
+        "1학년 건강검진",
+        "검진"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "학교 행사: 검진",
+        "전 교직원·필수 대상"
+      ],
+      "confidence": 0.88,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "8e7f5eb5db8e59dbf781c97939b6c0f2",
+      "messageSentAt": "2026/08/27 08:30:00 (목)",
+      "counterpart": "보건",
+      "autoRegisterEligible": true,
+      "autoRegisterBlockers": []
+    },
+    {
+      "id": "a379ac79-b093-42db-b7bb-f66d0b175afc",
+      "messageId": "07f556d80eb986ee4fa8d883da15ad3f",
+      "proposedTitle": "제출 안내",
+      "candidateType": "DEADLINE",
+      "startAt": null,
+      "endAt": null,
+      "dueAt": "2026-08-29",
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": "제출",
+      "targetText": null,
+      "keywords": [
+        "제출"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "내가 할 일: 제출",
+        "기한이 있는 제출·신청"
+      ],
+      "confidence": 0.76,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "07f556d80eb986ee4fa8d883da15ad3f",
+      "messageSentAt": "2026/08/27 08:30:00 (목)",
+      "counterpart": "교무부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "나와 관련 있다고 보기 어려움"
+      ]
+    },
+    {
+      "id": "e0869532-4fa4-4883-b004-9eb9b6ce22d0",
+      "messageId": "4b0dbccd03d370b965782446d82504f4",
+      "proposedTitle": "훈련 안내",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-08-28T14:00",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "exact",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": "전 교직원",
+      "keywords": [
+        "대피 훈련",
+        "훈련"
+      ],
+      "reasoning": [
+        "시각까지 분명함",
+        "학교 행사: 훈련",
+        "전 교직원·필수 대상"
+      ],
+      "confidence": 0.96,
+      "confidenceBand": "높음",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "4b0dbccd03d370b965782446d82504f4",
+      "messageSentAt": "2026/08/28 07:50:00 (금)",
+      "counterpart": "체육안전부장",
+      "autoRegisterEligible": true,
+      "autoRegisterBlockers": []
+    },
+    {
+      "id": "e2f61820-0d7f-4cc7-9c26-20182883d3ef",
+      "messageId": "0e1f50a79ad2548eedb6eb806a89688f",
+      "proposedTitle": "출석부 제출",
+      "candidateType": "DEADLINE",
+      "startAt": null,
+      "endAt": null,
+      "dueAt": "2026-08-28",
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": "제출",
+      "targetText": null,
+      "keywords": [
+        "제출"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "내가 할 일: 제출",
+        "확인 필요: 요일만 적힘",
+        "기한이 있는 제출·신청"
+      ],
+      "confidence": 0.64,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [
+        "요일만 적힘"
+      ],
+      "sourceGroupId": "0e1f50a79ad2548eedb6eb806a89688f",
+      "messageSentAt": "2026/08/27 11:00:00 (목)",
+      "counterpart": "체육부",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "확인 필요: 요일만 적힘",
+        "나와 관련 있다고 보기 어려움"
+      ]
+    },
+    {
+      "id": "108ebfd9-5ea7-4cad-874e-a5d42c4c9e31",
+      "messageId": "0895dcc4f208423525fd2e1327a52d53",
+      "proposedTitle": "협의회 안내",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-09-01",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [
+        "학년 협의회",
+        "협의회"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "학교 행사: 협의회",
+        "확인 필요: 요일만 적힘"
+      ],
+      "confidence": 0.6,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [
+        "요일만 적힘"
+      ],
+      "sourceGroupId": "0895dcc4f208423525fd2e1327a52d53",
+      "messageSentAt": "2026/08/27 11:00:00 (목)",
+      "counterpart": "학년부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "확인 필요: 요일만 적힘",
+        "나와 관련 있다고 보기 어려움"
+      ]
+    },
+    {
+      "id": "59947a71-6d7c-4302-9a7d-1581924d1ea6",
+      "messageId": "55d0a5ed54e6c722dc5d38308023de92",
+      "proposedTitle": "회의 안내",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-08-31",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [
+        "부장 회의",
+        "회의"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "학교 행사: 회의"
+      ],
+      "confidence": 0.72,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "55d0a5ed54e6c722dc5d38308023de92",
+      "messageSentAt": "2026/08/27 13:00:00 (목)",
+      "counterpart": "교무부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "나와 관련 있다고 보기 어려움"
+      ]
+    },
+    {
+      "id": "83ed3a25-d929-46a8-9f3d-dc57aba7c9f7",
+      "messageId": "c1b6692bc10c2d5fff77f29888ba2195",
+      "proposedTitle": "계기교육 안내",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-08-28",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "period",
+      "periodStart": 5,
+      "periodEnd": 6,
+      "location": null,
+      "actionText": null,
+      "targetText": "전 교직원",
+      "keywords": [],
+      "reasoning": [
+        "교시로 적힘",
+        "학교에서 실시하는 일정",
+        "전 교직원·필수 대상",
+        "확인 필요: 교시표 미설정"
+      ],
+      "confidence": 0.78,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [
+        "교시표 미설정"
+      ],
+      "sourceGroupId": "c1b6692bc10c2d5fff77f29888ba2195",
+      "messageSentAt": "2026/08/27 09:00:00 (목)",
+      "counterpart": "학년부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "확인 필요: 교시표 미설정"
+      ]
+    },
+    {
+      "id": "10ceb524-963d-4848-b438-0031d0a38617",
+      "messageId": "1a10903a5f03d5fde346a18bc9fa26b0",
+      "proposedTitle": "지필평가 일정",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-09-01",
+      "endAt": "2026-09-03",
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [
+        "2학기 1차 지필평가",
+        "고사"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "학교 행사: 고사",
+        "내 역할과 맞음"
+      ],
+      "confidence": 0.8,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "1a10903a5f03d5fde346a18bc9fa26b0",
+      "messageSentAt": "2026/08/27 09:00:00 (목)",
+      "counterpart": "교육연구부장",
+      "autoRegisterEligible": true,
+      "autoRegisterBlockers": []
+    },
+    {
+      "id": "727fab9b-ae27-4971-8da5-af3b0e3f71e7",
+      "messageId": "1bf841c671cb3f7f7187093a200efe5d",
+      "proposedTitle": "협의회",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-08-31T15:00",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "exact",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [
+        "학년 협의회",
+        "협의회"
+      ],
+      "reasoning": [
+        "시각까지 분명함",
+        "학교 행사: 협의회",
+        "확인 필요: 오전·오후 불명확"
+      ],
+      "confidence": 0.68,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [
+        "오전·오후 불명확"
+      ],
+      "sourceGroupId": "1bf841c671cb3f7f7187093a200efe5d",
+      "messageSentAt": "2026/08/27 09:00:00 (목)",
+      "counterpart": "교무부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "확인 필요: 오전·오후 불명확",
+        "나와 관련 있다고 보기 어려움"
+      ]
+    },
+    {
+      "id": "e3428af6-df2d-4c6e-8fac-373d323497e0",
+      "messageId": "f88d26b3fe1106e2053b18889c1a19be",
+      "proposedTitle": "개학식 안내",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2027-01-05",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [
+        "개학식",
+        "의식행사"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "학교 행사: 의식행사",
+        "확인 필요: 연도 생략"
+      ],
+      "confidence": 0.6,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [
+        "연도 생략"
+      ],
+      "sourceGroupId": "f88d26b3fe1106e2053b18889c1a19be",
+      "messageSentAt": "2026/08/27 09:00:00 (목)",
+      "counterpart": "교무부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "확인 필요: 연도 생략",
+        "나와 관련 있다고 보기 어려움"
+      ]
+    },
+    {
+      "id": "1b310a9c-8040-4ce7-a9a3-af115bfb4c58",
+      "messageId": "b6023a399b665db2388561d600746e88",
+      "proposedTitle": "직무연수 안내",
+      "candidateType": "OPTIONAL_EVENT",
+      "startAt": "2026-09-04",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [
+        "직무 연수",
+        "연수"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "학교 행사: 연수",
+        "내 역할과 맞음",
+        "희망자·신청자 대상 표현",
+        "희망자 대상이라 확인이 필요합니다"
+      ],
+      "confidence": 0.65,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "b6023a399b665db2388561d600746e88",
+      "messageSentAt": "2026/08/27 09:00:00 (목)",
+      "counterpart": "연구부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "공식 일정·내 마감이 아님",
+        "희망자 대상 표현"
+      ]
+    },
+    {
+      "id": "3d89072c-51c2-4002-a6e7-0f901f92f855",
+      "messageId": "c03e3fda34aaba5a0e42771819a23da3",
+      "proposedTitle": "출장 안내",
+      "candidateType": "REFERENCE_NOTICE",
+      "startAt": "2026-08-31",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [],
+      "reasoning": [
+        "날짜만 적힘",
+        "행동·행사 표현이 뚜렷하지 않음",
+        "참고용 안내로 보입니다"
+      ],
+      "confidence": 0.56,
+      "confidenceBand": "낮음",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "c03e3fda34aaba5a0e42771819a23da3",
+      "messageSentAt": "2026/08/27 12:00:00 (목)",
+      "counterpart": "동료 교사",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "공식 일정·내 마감이 아님",
+        "나와 관련 있다고 보기 어려움"
+      ]
+    },
+    {
+      "id": "fdf5f6e0-5f57-4faa-b01f-5db161f60419",
+      "messageId": "9e21da119fe6944ab2447dc941314e78",
+      "proposedTitle": "회의 취소",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-08-31",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [
+        "부장 회의",
+        "회의"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "학교 행사: 회의",
+        "취소 안내로 보입니다"
+      ],
+      "confidence": 0.72,
+      "confidenceBand": "검토 필요",
+      "relationType": "cancel",
+      "ambiguityFlags": [],
+      "sourceGroupId": "9e21da119fe6944ab2447dc941314e78",
+      "messageSentAt": "2026/08/27 12:00:00 (목)",
+      "counterpart": "교무부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "변경·취소 제안",
+        "나와 관련 있다고 보기 어려움"
+      ]
+    },
+    {
+      "id": "6623a09d-25be-4768-b271-54f1c402bafd",
+      "messageId": "f74af1a452d675c8deff21cc28f03d84",
+      "proposedTitle": "시간 변경",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-09-01T15:20",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "exact",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [
+        "교무회의",
+        "회의"
+      ],
+      "reasoning": [
+        "시각까지 분명함",
+        "학교 행사: 회의",
+        "변경 안내로 보입니다"
+      ],
+      "confidence": 0.8,
+      "confidenceBand": "검토 필요",
+      "relationType": "update",
+      "ambiguityFlags": [],
+      "sourceGroupId": "f74af1a452d675c8deff21cc28f03d84",
+      "messageSentAt": "2026/08/27 12:00:00 (목)",
+      "counterpart": "교무부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "변경·취소 제안",
+        "나와 관련 있다고 보기 어려움"
+      ]
+    },
+    {
+      "id": "e1a39c77-b8d3-489f-97dc-67417428c433",
+      "messageId": "23fbcdff62a247a3b7a1b8fcff737639",
+      "proposedTitle": "폭염 안내",
+      "candidateType": "URGENT_NOTICE",
+      "startAt": "2026-08-28",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [],
+      "reasoning": [
+        "날짜만 적힘",
+        "행동·행사 표현이 뚜렷하지 않음",
+        "당일 긴급 공지"
+      ],
+      "confidence": 0.56,
+      "confidenceBand": "낮음",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "23fbcdff62a247a3b7a1b8fcff737639",
+      "messageSentAt": "2026/08/28 08:00:00 (금)",
+      "counterpart": "체육안전부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "공식 일정·내 마감이 아님",
+        "나와 관련 있다고 보기 어려움"
+      ]
+    },
+    {
+      "id": "e50517cf-03ff-4d9a-a7e5-29632562c246",
+      "messageId": "309a55434791c45b21fae403dac66694",
+      "proposedTitle": "체험학습 안내",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-09-16",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": "전 교직원",
+      "keywords": [
+        "현장체험학습",
+        "체험학습"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "학교 행사: 체험학습",
+        "전 교직원·필수 대상"
+      ],
+      "confidence": 0.88,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "309a55434791c45b21fae403dac66694",
+      "messageSentAt": "2026/08/27 12:00:00 (목)",
+      "counterpart": "학년부장",
+      "autoRegisterEligible": true,
+      "autoRegisterBlockers": []
+    },
+    {
+      "id": "06931cc5-6466-45ba-8185-23ccdb987964",
+      "messageId": "e8e23d6d92ffc21db1cade2c2b06c168",
+      "proposedTitle": "9월 일정 안내",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-09-02",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [
+        "학년 협의회",
+        "협의회"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "학교 행사: 협의회"
+      ],
+      "confidence": 0.72,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "e8e23d6d92ffc21db1cade2c2b06c168",
+      "messageSentAt": "2026/08/27 12:00:00 (목)",
+      "counterpart": "교무부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "나와 관련 있다고 보기 어려움"
+      ]
+    },
+    {
+      "id": "37febc40-b985-4ff3-998b-0e4e63a7bc3a",
+      "messageId": "e8e23d6d92ffc21db1cade2c2b06c168",
+      "proposedTitle": "9월 일정 안내",
+      "candidateType": "OFFICIAL_EVENT",
+      "startAt": "2026-09-04",
+      "endAt": null,
+      "dueAt": null,
+      "timePrecision": "date_only",
+      "periodStart": null,
+      "periodEnd": null,
+      "location": null,
+      "actionText": null,
+      "targetText": null,
+      "keywords": [
+        "공개수업"
+      ],
+      "reasoning": [
+        "날짜만 적힘",
+        "학교 행사: 공개수업"
+      ],
+      "confidence": 0.72,
+      "confidenceBand": "검토 필요",
+      "relationType": "new",
+      "ambiguityFlags": [],
+      "sourceGroupId": "e8e23d6d92ffc21db1cade2c2b06c168",
+      "messageSentAt": "2026/08/27 12:00:00 (목)",
+      "counterpart": "교무부장",
+      "autoRegisterEligible": false,
+      "autoRegisterBlockers": [
+        "나와 관련 있다고 보기 어려움"
+      ]
+    }
+  ]
+}

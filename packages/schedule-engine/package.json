@@ -12,6 +12,8 @@
     "analyze": "tsx scripts/analyze.ts",
     "extract": "tsx scripts/extract.ts",
     "eval": "tsx scripts/evaluate.ts",
+    "sample": "tsx scripts/sample.ts",
+    "trace": "tsx scripts/trace.ts",
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
