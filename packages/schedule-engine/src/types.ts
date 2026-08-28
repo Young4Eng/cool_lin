@@ -48,7 +48,9 @@ export type AmbiguityFlag =
   | "교시표 미설정"
   | "변경 대상 불명확"
   | "날짜 범위 벗어남"
-  | "요일만 적힘";
+  | "요일만 적힘"
+  | "일과 시각 추정"
+  | "날짜 없이 요청만 적힘";
 
 /** 본문에서 찾아낸 날짜 표현 하나 */
 export interface DateMention {

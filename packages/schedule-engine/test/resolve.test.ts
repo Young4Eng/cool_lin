@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { civil } from "../src/dates/civil.js";
-import { extractDates } from "../src/dates/resolve.js";
+import { extractDates, sendDayRequestMention } from "../src/dates/resolve.js";
+import { ACTION_TERMS, REQUEST_ENDINGS } from "../src/classify/lexicon.js";
 import { parseSentAt } from "../src/dates/sentAt.js";
 
 /** 기준 발송일: 2026-08-27 (목) 08:21 */
@@ -175,4 +176,53 @@ test("전화번호는 날짜로 잡히지 않는다", () => {
 test("내선번호·학번은 날짜로 잡히지 않는다", () => {
   assert.equal(none("융합정보부(내선 114)로 연락 바랍니다").length, 0);
   assert.equal(none("10514 학생 서류입니다").length, 0);
+});
+
+/* ─────────────────── 학교 일과 시점 (점심 전 · 종례 전) ─────────────────── */
+
+test("일과 시점 — 「점심 전까지」는 12시로 본다", () => {
+  const m = first("출석부를 금요일 점심 전까지 제출해 주세요.");
+  assert.equal(m.startAt, "2026-08-28T12:00");
+  assert.ok(m.flags.includes("일과 시각 추정"), "학교마다 다르므로 표시를 남긴다");
+});
+
+test("일과 시점 — 「오늘 종례 전」은 발송일 16시", () => {
+  const m = first("동의서 미제출은 오늘 종례 전 학년게시판에 올려 주세요.");
+  assert.equal(m.startAt, "2026-08-27T16:00");
+  assert.equal(m.rule, "today");
+});
+
+test("일과 시점 — 날짜에 붙여 쓴 「종례 전까지」도 시각이 된다", () => {
+  const m = first("8월 28일(금) 종례 전까지 제출 바랍니다.");
+  assert.equal(m.startAt, "2026-08-28T16:00");
+});
+
+test("일과 시점 — 「전」이나 「까지」가 없으면 시각으로 보지 않는다", () => {
+  // 「점심 급식」 같은 말까지 12시로 바꾸면 엉뚱한 마감이 생긴다.
+  const m = first("내일 점심 급식은 특식입니다.");
+  assert.equal(m.startAt, "2026-08-28");
+  assert.equal(m.flags.includes("일과 시각 추정"), false);
+});
+
+test("일과 시점 — 적힌 시계 시각이 일과 시점을 이긴다", () => {
+  const m = first("금요일 11시까지, 점심 전까지 꼭 제출해 주세요.");
+  assert.equal(m.startAt, "2026-08-28T11:00");
+});
+
+test("날짜 없는 요청 — 발송일을 마감으로 잡되 지어낸 날짜임을 표시한다", () => {
+  const m = sendDayRequestMention(SENT);
+  assert.equal(m.startAt, "2026-08-27");
+  assert.equal(m.rule, "request-no-date-assumed-send-day");
+  assert.ok(m.flags.includes("날짜 없이 요청만 적힘"));
+});
+
+test("날짜 없는 요청 — 행동 낱말과 시키는 말끝이 함께 있어야 한다", () => {
+  const isRequest = (s: string) =>
+    REQUEST_ENDINGS.test(s) && ACTION_TERMS.some((a) => a.term.test(s));
+
+  assert.ok(isRequest("학급 시간표를 교실 앞면에 게시해 주세요."));
+  assert.ok(isRequest("해당 학생 가정에 안내 부탁드립니다."));
+  // 「부탁드립니다」만으로는 지시인지 알 수 없다 — 인사말에도 붙는다.
+  assert.equal(isRequest("바쁘시겠지만 잘 부탁드립니다."), false);
+  assert.equal(isRequest("오류 발견 시 융합정보부로 연락 바랍니다."), false);
 });

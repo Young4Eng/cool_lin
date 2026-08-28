@@ -28,11 +28,30 @@ import {
 /** 학교별 교시 시각표. 설정돼 있을 때만 교시를 시각으로 바꾼다 (PRD 7.1). */
 export type PeriodTable = Record<number, { start: [number, number]; end: [number, number] }>;
 
+/**
+ * 학교 일과의 «시점» 이름과 그 시각.
+ *
+ * 「점심 전까지」·「종례 전」처럼 시계 시각 대신 일과를 가리키는 말이 실제 쪽지에 흔하다.
+ * 교시와 달리 이 말들은 학교가 달라도 크게 어긋나지 않아 기본값을 둔다. 다만 정확한 시각은
+ * 여전히 학교마다 다르므로 «일과 시각 추정» 표시를 붙여 사람이 한 번 보게 한다
+ * (그대로 캘린더에 들어가면 30분 틀린 마감이 조용히 박힌다).
+ */
+export type DayLandmarkTable = Record<string, [number, number]>;
+
+export const DEFAULT_DAY_LANDMARKS: DayLandmarkTable = {
+  조회: [8, 30],
+  점심: [12, 0],
+  종례: [16, 0],
+  퇴근: [16, 30],
+};
+
 export interface ResolveOptions {
   /** 쪽지 발송일시. 모든 상대 표현의 기준점 */
   sentAt: Civil;
   /** 학교 교시표. 없으면 교시를 시각으로 바꾸지 않고 교시 번호만 보존한다. */
   periodTable?: PeriodTable | null;
+  /** 학교 일과 시점표. 주지 않으면 `DEFAULT_DAY_LANDMARKS` 를 쓴다. */
+  dayLandmarks?: DayLandmarkTable | null;
   /** 발송일에서 이만큼 벗어난 날짜는 «날짜 범위 벗어남»으로 본다. */
   maxDaysBefore?: number;
   maxDaysAfter?: number;
@@ -93,6 +112,33 @@ function findPeriods(text: string, table: PeriodTable | null | undefined): TimeH
       hit.flags.push("교시표 미설정");
     }
     hits.push(hit);
+  }
+  return hits;
+}
+
+/**
+ * 「점심 전까지」·「종례 전」처럼 일과 시점으로 적은 마감.
+ *
+ * 실제 쪽지에서 시계 시각만큼이나 흔하다 — 교사끼리는 「12시」보다 「점심 전」이라고 쓴다.
+ * 「전」이나 「까지」가 붙었을 때만 잡는다. 그냥 「점심 급식 메뉴」 같은 말까지 시각으로
+ * 바꾸면 엉뚱한 마감이 생긴다.
+ */
+function findDayLandmarks(text: string, table: DayLandmarkTable): TimeHit[] {
+  const names = Object.keys(table);
+  if (names.length === 0) return [];
+
+  const hits: TimeHit[] = [];
+  const pattern = new RegExp(`(${names.join("|")})\\s*(?:시간)?\\s*(?:이?전|까지)`, "g");
+  for (const m of text.matchAll(pattern)) {
+    const slot = table[m[1] as string];
+    if (!slot) continue;
+    hits.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      hour: slot[0],
+      minute: slot[1],
+      flags: ["일과 시각 추정"],
+    });
   }
   return hits;
 }
@@ -419,12 +465,17 @@ function attachTime(
 /** 한 문장에서 날짜·시각을 뽑아 절대 날짜 후보로 만든다. */
 export function extractDates(sentence: string, options: ResolveOptions): DateMention[] {
   const { sentAt, periodTable = null } = options;
+  const landmarkTable = options.dayLandmarks ?? DEFAULT_DAY_LANDMARKS;
   const maxBefore = options.maxDaysBefore ?? 365;
   const maxAfter = options.maxDaysAfter ?? 730;
 
   const periods = findPeriods(sentence, periodTable);
   const clocks = findClockTimes(sentence);
-  const times = [...periods, ...clocks].sort((a, b) => a.start - b.start);
+  // 시계 시각이 우선이다. 「12시(점심 전)까지」처럼 둘 다 적혀 있으면 적힌 숫자를 믿는다.
+  const landmarks = findDayLandmarks(sentence, landmarkTable).filter(
+    (l) => !overlaps(l, [...periods, ...clocks].map((t) => ({ start: t.start, end: t.end }))),
+  );
+  const times = [...periods, ...clocks, ...landmarks].sort((a, b) => a.start - b.start);
 
   // 시각 구간을 먼저 점유해 두어야 "15:20"의 15가 8/15로 잘못 잡히지 않는다.
   const taken: Span[] = times.map((t) => ({ start: t.start, end: t.end }));
@@ -490,6 +541,28 @@ export function extractDates(sentence: string, options: ResolveOptions): DateMen
   }
 
   return mentions;
+}
+
+/**
+ * 날짜가 한 글자도 없는 «해 주세요» 문장의 마감일.
+ *
+ * 「학급 게시판에 붙여 주세요」·「가정에 안내 부탁드립니다」처럼 학교 쪽지에는 기한을 적지
+ * 않은 지시가 아주 흔하다. 보내는 사람에게는 «받는 즉시»가 당연해 굳이 적지 않는 것이다.
+ * 그동안 이런 문장은 날짜가 없다는 이유로 후보조차 되지 못했고, 그래서 교사가 놓쳤다.
+ *
+ * 발송일을 마감으로 잡되 **지어낸 날짜임을 반드시 표시한다**. 표시가 붙으면 자동 등록이
+ * 막혀 검토함으로 간다 — 사람이 「오늘까지가 맞나」를 한 번 보고 넘긴다.
+ * 부르는 쪽이 «요청 문장인지»를 판단한다 (pipeline.ts).
+ */
+export function sendDayRequestMention(sentAt: Civil): DateMention {
+  return {
+    text: "",
+    index: 0,
+    startAt: toISO(startOfDay(sentAt), false),
+    precision: "date_only",
+    flags: ["날짜 없이 요청만 적힘"],
+    rule: "request-no-date-assumed-send-day",
+  };
 }
 
 /** 사람이 읽을 수 있는 요약. 진단 화면과 테스트 출력에 쓴다. */

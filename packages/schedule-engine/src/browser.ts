@@ -13,7 +13,8 @@
  */
 import { band, classifySentence, type UserRole } from "./classify/classify.js";
 import { diffDays, startOfDay, type Civil } from "./dates/civil.js";
-import { extractDates, type PeriodTable } from "./dates/resolve.js";
+import { extractDates, sendDayRequestMention, type PeriodTable } from "./dates/resolve.js";
+import { ACTION_TERMS, REQUEST_ENDINGS } from "./classify/lexicon.js";
 import { parseSentAt } from "./dates/sentAt.js";
 import {
   ambiguityFlagsFor,
@@ -126,8 +127,15 @@ export function extractFromMessage(
   const seen = new Set<string>();
 
   for (const sentence of splitSentences(sensitive.masked)) {
-    const dates = extractDates(sentence.text, { sentAt, periodTable });
-    if (dates.length === 0) continue;
+    let dates = extractDates(sentence.text, { sentAt, periodTable });
+
+    // 날짜가 없어도 «나에게 시키는» 문장이면 발송일 마감으로 잡는다 (pipeline.ts 와 같은 규칙).
+    if (dates.length === 0) {
+      const isRequest =
+        REQUEST_ENDINGS.test(sentence.text) && ACTION_TERMS.some((a) => a.term.test(sentence.text));
+      if (!isRequest) continue;
+      dates = [sendDayRequestMention(sentAt)];
+    }
 
     const verdict = classifySentence({
       sentence: sentence.text,
