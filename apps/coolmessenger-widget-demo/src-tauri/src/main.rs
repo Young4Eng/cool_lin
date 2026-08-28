@@ -298,6 +298,49 @@ fn run_messenger_download(
     }
 }
 
+/// 시스템 기본 브라우저로 URL을 연다.
+///
+/// 위젯 웹뷰에서 window.open 을 쓰면 설치본에서는 아무 창도 안 뜨거나
+/// 빈 웹뷰만 뜬다. 구글 캘린더 등록은 교사의 브라우저에서 이뤄져야 한다.
+/// https 만 받고, 구글 캘린더 주소만 연다.
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    let ok = url.starts_with("https://calendar.google.com/")
+        || url.starts_with("https://www.google.com/calendar");
+    if !ok {
+        return Err("허용되지 않은 주소입니다.".into());
+    }
+
+    #[cfg(windows)]
+    {
+        // cmd start 는 URL 의 & 를 명령 구분자로 본다. 따옴표로 감싼다.
+        let quoted = format!("start \"\" \"{url}\"");
+        std::process::Command::new("cmd")
+            .args(["/C", &quoted])
+            .spawn()
+            .map_err(|e| format!("브라우저를 열지 못했습니다: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("브라우저를 열지 못했습니다: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("브라우저를 열지 못했습니다: {e}"))?;
+        Ok(())
+    }
+}
+
 /// 지금 부팅 자동 실행이 켜져 있는가.
 #[tauri::command]
 fn autostart_status(app: AppHandle) -> bool {
@@ -330,7 +373,8 @@ fn main() {
             set_widget_visible,
             set_calendar_open,
             read_latest_export,
-            run_messenger_download
+            run_messenger_download,
+            open_url
         ])
         .setup(|app| {
             place_widget(app.handle());

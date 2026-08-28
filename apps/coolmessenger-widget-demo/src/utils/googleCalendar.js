@@ -11,6 +11,8 @@
  *   { title, date: 'YYYY-MM-DD', time?: 'HH:mm', location?, description?, category? }
  */
 
+import { openExternalUrl } from '../services/desktopShell';
+
 const TEMPLATE_BASE = 'https://calendar.google.com/calendar/render';
 export const GOOGLE_CALENDAR_TZ = 'Asia/Seoul';
 
@@ -49,11 +51,9 @@ export function markEventAdded(event, at = new Date()) {
   return { ...event, googleCalendarAddedAt: at.toISOString() };
 }
 
-export function openGoogleCalendar(event) {
+export async function openGoogleCalendar(event) {
   const url = buildGoogleCalendarUrl(event);
-  if (typeof window !== 'undefined') {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }
+  await openExternalUrl(url);
   return { url, added: markEventAdded(event) };
 }
 

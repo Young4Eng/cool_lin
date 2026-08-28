@@ -62,13 +62,14 @@ function ItemCard({
   const summary = isTodo ? '' : eventSummary(item);
   const addedToGoogle = Boolean(item.googleCalendarAddedAt);
 
-  const handleAddToGoogle = (e) => {
+  const handleAddToGoogle = async (e) => {
     e.stopPropagation();
+    e.preventDefault();
     try {
-      const { added } = openGoogleCalendar(item);
+      const { added } = await openGoogleCalendar(item);
       onAddToGoogleCalendar?.(added);
     } catch {
-      // 제목/날짜가 비면 URL을 못 만든다. 위젯은 그대로 둔다.
+      // 제목/날짜가 비거나 브라우저를 못 열면 위젯은 그대로 둔다.
     }
   };
 
@@ -197,33 +198,34 @@ function ItemCard({
         </div>
       )}
 
-      {/* 구글 캘린더·삭제는 평소에 숨긴다 — 흘깃 보는 화면에 액션을 상시 노출하지 않는다.
+      {/* 구글 캘린더는 일정 카드에 항상 보이게 둔다. 호버 아이콘만 있으면 없는 것처럼 보인다.
           할 일 카드에는 두지 않는다 — 지우는 곳은 할 일 탭이고, 구글에 넣는 것은 일정이다. */}
       {!isTodo && (
-        <div className="mt-1 flex justify-end gap-0.5">
+        <div className="mt-2 flex items-center gap-1">
           {mode === 'calendar' && (
             <button
               type="button"
               onClick={handleAddToGoogle}
-              className={`rounded p-0.5 transition-opacity hover:text-[#1D1715] focus:opacity-100 ${
+              className={`flex min-h-[28px] flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 text-[12px] font-semibold ${
                 addedToGoogle
-                  ? 'text-emerald-600 opacity-100'
-                  : 'text-[#C9C5BD] opacity-0 group-hover:opacity-100'
+                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  : 'bg-[#1A73E8] text-white hover:bg-[#1557B0]'
               }`}
               title={addedToGoogle ? '구글 캘린더에 추가됨 · 다시 열기' : '구글 캘린더에 추가'}
               aria-label={`${item.title} 구글 캘린더에 추가`}
             >
-              <CalendarPlus size={12} />
+              <CalendarPlus size={14} />
+              {addedToGoogle ? '구글 캘린더에 추가됨' : '구글 캘린더에 추가'}
             </button>
           )}
           <button
             type="button"
             onClick={() => onDeleteEvent?.(item.id)}
-            className="rounded p-0.5 text-[#C9C5BD] opacity-0 transition-opacity hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
+            className="rounded p-1 text-[#C9C5BD] opacity-0 transition-opacity hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
             title="이 일정 삭제"
             aria-label={`${item.title} 삭제`}
           >
-            <Trash2 size={12} />
+            <Trash2 size={14} />
           </button>
         </div>
       )}
