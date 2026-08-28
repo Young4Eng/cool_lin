@@ -8,7 +8,7 @@
  * predev / prebuild 에서 이 파일을 돌려 그 상황을 없앤다.
  * 이미 최신이면 아무것도 하지 않으므로 평소에는 거의 시간이 들지 않는다.
  */
-import { execFileSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,9 +18,10 @@ const engine = path.resolve(here, "../../../packages/schedule-engine");
 const dist = path.join(engine, "dist");
 const src = path.join(engine, "src");
 
-const run = (args) => {
-  // Windows 에서 npm 은 .cmd 라서 shell 없이는 실행되지 않는다 (Node 20+ 보안 변경).
-  execFileSync("npm", args, { cwd: engine, stdio: "inherit", shell: true });
+// Windows 에서 npm 은 .cmd 라 셸을 거쳐야 실행된다. 명령은 아래 두 개로 고정돼 있고
+// 바깥 입력이 섞이지 않으므로 문자열로 넘겨도 안전하다.
+const run = (command) => {
+  execSync(`npm ${command}`, { cwd: engine, stdio: "inherit" });
 };
 
 /** 폴더 안에서 가장 나중에 고쳐진 시각 */
@@ -41,7 +42,7 @@ if (!existsSync(engine)) {
 
 if (!existsSync(path.join(engine, "node_modules"))) {
   console.log("[schedule-engine] 의존성을 설치합니다...");
-  run(["install"]);
+  run("install");
 }
 
 const built = existsSync(path.join(dist, "browser.js"));
@@ -49,8 +50,8 @@ const stale = built && newestMtime(src) > newestMtime(dist);
 
 if (!built) {
   console.log("[schedule-engine] 빌드된 결과가 없어 빌드합니다...");
-  run(["run", "build"]);
+  run("run build");
 } else if (stale) {
   console.log("[schedule-engine] 규칙이 바뀌어 다시 빌드합니다...");
-  run(["run", "build"]);
+  run("run build");
 }

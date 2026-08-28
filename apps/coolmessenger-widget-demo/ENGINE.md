@@ -73,3 +73,18 @@ npm --prefix ../../packages/schedule-engine run build
 
 규칙 자체가 궁금하면 `packages/schedule-engine/RULES.md` 를 보세요.
 어댑터는 변환만 하므로, 추출 결과가 이상하면 어댑터가 아니라 엔진을 고쳐야 합니다.
+
+---
+
+## 막혔을 때
+
+| 증상 | 원인과 해결 |
+|---|---|
+| `Could not resolve @cool-lin/schedule-engine/browser` | 위젯 폴더에서 `npm install`을 안 했습니다. `file:` 의존이라 각자 컴퓨터에서 한 번은 링크를 만들어야 합니다 |
+| `packages/schedule-engine 을 찾지 못했습니다` | 위젯 폴더만 따로 받았습니다. 저장소 전체를 클론해야 합니다 |
+| 규칙을 고쳤는데 화면이 그대로 | 개발 서버가 켜져 있으면 반영되지 않습니다. 껐다 켜세요 |
+| `tsc: not found` / 엔진 빌드 실패 | Node 18 이상이 필요합니다. `node -v` 로 확인하세요 |
+| 일정이 하나도 안 잡힘 | 고장이 아닐 수 있습니다. 쪽지 안의 날짜가 이미 지났거나(가장 흔함), 날짜 표현이 아예 없거나, `message.timestamp`를 안 넘긴 경우입니다 |
+
+확인된 환경: Node 24 / npm 11 / Windows. 새로 클론해서 `npm install` → `npm run build`
+두 단계만으로 돌아가는 것을 확인했습니다.
