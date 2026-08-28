@@ -7,6 +7,7 @@ import express from "express";
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
 const pythonDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../python");
+const LOCAL_AI_INGEST = "http://127.0.0.1:4000/api/local-ai/ingest";
 
 app.use(cors());
 app.use(express.json());
@@ -62,6 +63,19 @@ function runIngest(mode: "ingest" | "latest"): Promise<Record<string, unknown>> 
   });
 }
 
+async function forwardToLocalAi(payload: Record<string, unknown>): Promise<void> {
+  try {
+    await fetch(LOCAL_AI_INGEST, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch {
+    // 로컬 AI 라우트가 아직 없어도 추출은 성공으로 둔다.
+  }
+}
+
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, at: new Date().toISOString() });
 });
@@ -70,6 +84,7 @@ app.post("/api/ingest", async (_req, res) => {
   try {
     const data = await runIngest("ingest");
     res.status(data.ok ? 200 : 400).json(data);
+    if (data.ok) void forwardToLocalAi(data);
   } catch (e) {
     res.status(400).json({ ok: false, error: e instanceof Error ? e.message : String(e), steps: [] });
   }
@@ -79,6 +94,7 @@ app.post("/api/open-latest", async (_req, res) => {
   try {
     const data = await runIngest("latest");
     res.status(data.ok ? 200 : 404).json(data);
+    if (data.ok) void forwardToLocalAi(data);
   } catch (e) {
     res.status(400).json({ ok: false, error: e instanceof Error ? e.message : String(e), steps: [] });
   }
