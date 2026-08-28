@@ -1,6 +1,7 @@
 // LocalStorage Persistence for CoolMessenger State
 
 import { INITIAL_MESSAGES, INITIAL_CHATS, INITIAL_QUICK_PHRASES, INITIAL_GROUP_CHATS } from '../data/initialData';
+import { dedupeEvents, dedupeTodos } from '../utils/dedupeItems.js';
 
 const KEYS = {
   MESSAGES: 'cool_messages_v1',
@@ -41,10 +42,16 @@ const DEMO_TODO_IDS = new Set([
   'todo-01', 'todo-02', 'todo-03', 'todo-04', 'todo-05',
 ]);
 
-/** 남아 있던 데모 항목을 걸러내고, 실제로 지워졌으면 저장소도 정리한다. */
-function withoutDemoRows(list, demoIds, storageKey) {
+/**
+ * 데모 항목과 중복을 걸러내고, 실제로 지워졌으면 저장소도 정리한다.
+ *
+ * 읽을 때마다 거른다. 중복은 이미 저장된 것에도 들어 있기 때문이다 — 규칙이 바뀌면
+ * 같은 쪽지에서 전과 다른 제목이 나오고, 그러면 «새 일정»으로 한 줄 더 앉는다.
+ * 여기서 한 번 정리해 두면 세 탭(일정·검토·할 일)이 모두 같은 목록을 보게 된다.
+ */
+function cleaned(list, demoIds, storageKey, dedupe) {
   if (!Array.isArray(list)) return [];
-  const kept = list.filter((it) => !demoIds.has(it?.id));
+  const kept = dedupe(list.filter((it) => !demoIds.has(it?.id)));
   if (kept.length !== list.length) {
     try {
       localStorage.setItem(storageKey, JSON.stringify(kept));
@@ -57,7 +64,7 @@ function withoutDemoRows(list, demoIds, storageKey) {
 export function loadStoredSchedule() {
   try {
     const data = localStorage.getItem(KEYS.SCHEDULE);
-    return data ? withoutDemoRows(JSON.parse(data), DEMO_EVENT_IDS, KEYS.SCHEDULE) : [];
+    return data ? cleaned(JSON.parse(data), DEMO_EVENT_IDS, KEYS.SCHEDULE, dedupeEvents) : [];
   } catch (e) {
     return [];
   }
@@ -72,7 +79,7 @@ export function saveStoredSchedule(events) {
 export function loadStoredTodos() {
   try {
     const data = localStorage.getItem(KEYS.TODOS);
-    return data ? withoutDemoRows(JSON.parse(data), DEMO_TODO_IDS, KEYS.TODOS) : [];
+    return data ? cleaned(JSON.parse(data), DEMO_TODO_IDS, KEYS.TODOS, dedupeTodos) : [];
   } catch (e) {
     return [];
   }

@@ -9,6 +9,7 @@
 
 import { extractFromMessage } from '@cool-lin/schedule-engine/browser';
 import { candidateToEvent, DEFAULT_ROLE } from './scheduleEngineAdapter';
+import { dedupeEvents } from '../utils/dedupeItems.js';
 
 /**
  * 쿨메신저가 내보내는 `.xls` 는 이름과 달리 SpreadsheetML 2003 **XML** 이다
@@ -110,5 +111,8 @@ export function eventsFromExport(text, options = {}) {
     }
   }
 
-  return events;
+  // 같은 쪽지·같은 때를 가리키는 문장이 여럿이면 하나로 줄인다 (utils/dedupeItems.js).
+  // 위 열쇠는 제목까지 봐서 「제출」과 「동의서 제출」을 다른 것으로 센다.
+  return dedupeEvents(events);
 }
+
