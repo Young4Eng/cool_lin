@@ -15,6 +15,7 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_opener::OpenerExt;
 
 const WIDGET: &str = "widget";
 /// 「캘린더 크게 보기」 창. 위젯과 별개로 뜬다.
@@ -390,42 +391,21 @@ fn messenger_download_blocking(
 /// 위젯 웹뷰에서 window.open 을 쓰면 설치본에서는 아무 창도 안 뜨거나
 /// 빈 웹뷰만 뜬다. 구글 캘린더 등록은 교사의 브라우저에서 이뤄져야 한다.
 /// https 만 받고, 구글 캘린더 주소만 연다.
+///
+/// 여는 일은 `tauri-plugin-opener` 에 맡긴다. 예전에는 `cmd /C start "" "<주소>"` 를
+/// 띄웠는데 윈도우에서 실패했다 — Rust 가 인자를 넘기며 따옴표를 `\"` 로 이스케이프해
+/// cmd 가 `\` 를 열려고 하고, 「'\'을(를) 찾을 수 없습니다」 상자와 콘솔 창만 뜬다.
+/// 게다가 spawn 자체는 성공하므로 화면은 「추가됨」으로 바뀐다 — 열리지도 않았는데.
 #[tauri::command]
-fn open_url(url: String) -> Result<(), String> {
+fn open_url(app: AppHandle, url: String) -> Result<(), String> {
     let ok = url.starts_with("https://calendar.google.com/")
         || url.starts_with("https://www.google.com/calendar");
     if !ok {
         return Err("허용되지 않은 주소입니다.".into());
     }
-
-    #[cfg(windows)]
-    {
-        // cmd start 는 URL 의 & 를 명령 구분자로 본다. 따옴표로 감싼다.
-        let quoted = format!("start \"\" \"{url}\"");
-        std::process::Command::new("cmd")
-            .args(["/C", &quoted])
-            .spawn()
-            .map_err(|e| format!("브라우저를 열지 못했습니다: {e}"))?;
-        return Ok(());
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&url)
-            .spawn()
-            .map_err(|e| format!("브라우저를 열지 못했습니다: {e}"))?;
-        return Ok(());
-    }
-
-    #[cfg(not(any(windows, target_os = "macos")))]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&url)
-            .spawn()
-            .map_err(|e| format!("브라우저를 열지 못했습니다: {e}"))?;
-        Ok(())
-    }
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| format!("브라우저를 열지 못했습니다: {e}"))
 }
 
 /// 지금 부팅 자동 실행이 켜져 있는가.
@@ -456,6 +436,8 @@ fn main() {
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         // 마감 알림을 윈도우 알림 센터로 띄운다.
         .plugin(tauri_plugin_notification::init())
+        // 바깥 링크(구글 캘린더)를 기본 브라우저로 넘긴다.
+        .plugin(tauri_plugin_opener::init())
         // 창이 닫힐 때마다 «보이는 창이 남았는가»를 본다 (exit_if_nothing_visible).
         //
         // 캘린더의 X 는 «없애기»가 아니라 «접기»다. 없애 버리면 다시 열 때 웹뷰를 새로
