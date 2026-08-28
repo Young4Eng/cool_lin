@@ -35,9 +35,7 @@ VK_CONTROL = 0x11
 VK_A = 0x41
 VK_HOME = 0x24
 VK_DELETE = 0x2E
-VK_LEFT = 0x25
-VK_RIGHT = 0x27
-VK_UP = 0x26
+VK_BACK = 0x08
 HWND_TOPMOST = -1
 HWND_NOTOPMOST = -2
 SWP_NOSIZE = 0x0001
@@ -449,52 +447,75 @@ def _field_shot(x: int, y: int, scale: float) -> np.ndarray:
     return np.array(img)
 
 
-def _changed(a: np.ndarray, b: np.ndarray) -> bool:
-    """글자가 바뀌었는가. 깜빡이는 캐럿(가는 세로선)에는 반응하지 않는다."""
+def _changed(a: np.ndarray, b: np.ndarray, min_px: int = 150) -> bool:
+    """글자가 바뀌었는가. 깜빡이는 캐럿(가는 세로선)에는 반응하지 않는다.
+
+    캐럿은 배율 1.0 에서 1×14 픽셀쯤이다. 기준치는 그보다 넉넉히 위여야 하지만,
+    «숫자 몇 자가 바뀌었다» 는 잡아낼 만큼 낮아야 한다.
+    """
     if a.shape != b.shape:
         return True
-    return int(np.count_nonzero(np.any(a != b, axis=-1))) > 150
+    return int(np.count_nonzero(np.any(a != b, axis=-1))) > min_px
 
 
-def type_into_date_field(x: int, y: int, digits: str, scale: float,
+def type_into_date_field(hwnd: int, x: int, y: int, digits: str, scale: float,
                          log: Callable[[str], None], label: str) -> None:
-    """날짜 칸에 년·월·일을 **칸 단위로** 넣는다.
+    """날짜 칸에 YYYYMMDD 여덟 자리를 넣는다.
 
-    이 칸은 년-월-일 세 칸이 붙어 있는 날짜 입력이다. 화면에는 `2026-07-01` 로 보인다.
-    하이픈 없이 8자리를 이어서 치면 년 칸이 여섯 자리까지 삼켜 `202608-02-05` 가 된다 —
-    실제로 이렇게 망가진 채 «성공»한 빈 파일이 나왔다. 보이는 표기대로 넣어야 한다.
+    이 칸은 달력 컨트롤이 아니다. 목업 메신저의 소스를 보면
+    (`docs/reference/coolmessenger-gentoo/bundle.pretty.js` 의 `Fr`) 그냥
+    `<input type="text">` 이고, `onKeyDown` 에서 **숫자와 Backspace 만** 처리한다.
+    화살표·TAB·Home·Delete 는 값에도 화면에도 아무 영향이 없다.
 
-    누르기 전에 위 화살표로 한 번 값을 올려 본다. 화면이 그대로면 캐럿이 칸 밖에 있다는
-    뜻이므로 거기서 멈춘다. 기간이 조용히 틀어지는 것이 가장 나쁜 결과다(기술계획서 8.4).
+    누르면 `select()` 가 돌면서 «다음 숫자는 처음부터» 상태가 되고, 그 뒤 숫자를 치면
+    앞의 값을 통째로 갈아 끼운 다음 이어지는 숫자가 뒤에 붙는다. 그래서 넣는 방법은
+    **누르고 여덟 자리를 치는 것** 하나뿐이다.
+
+    예전에는 누른 뒤 ↑ 를 눌러 화면이 바뀌는지로 캐럿을 확인했다. 그런데 이 칸은 ↑ 를
+    아예 처리하지 않아 **어떤 경우에도 화면이 바뀌지 않는다** — 확인이 항상 실패해서
+    가져오기를 누를 때마다 「시작 날짜 칸을 누르지 못했습니다」만 나왔다.
+
+    대신 **Backspace** 로 확인한다. 이 칸이 처리하는 글쇠라 값이 한 자리 줄어들고,
+    그것은 목표 날짜가 원래 값과 같든 다르든 반드시 눈에 보이는 변화다. 안 바뀌었으면
+    글쇠가 이 칸에 닿지 않은 것이다.
+
+    확인한 뒤에는 **다시 한 번 누른다.** Backspace 는 «처음부터» 상태를 꺼 버리기 때문에
+    그대로 치면 여덟 자리가 남은 값 뒤에 붙어 앞 여덟 자리만 남는다 — 기간이 조용히
+    틀어진 채 «성공»하는, 가장 나쁜 결과다 (기술계획서 8.4).
     """
-    before = _field_shot(x, y, scale)
-    click(int(x), int(y))
-    time.sleep(0.18)
-    for _ in range(3):
-        tap(VK_LEFT)  # 어느 칸을 눌렀든 첫 칸(년)으로 간다
-        time.sleep(0.02)
-    tap(VK_UP)
-    time.sleep(0.18)
-    probed = _field_shot(x, y, scale)
-    if not _changed(before, probed):
+    probed = None
+    for attempt in (1, 2, 3):
+        # 가려져 있으면 글쇠가 이 창으로 가지 않는다. 누르기 전에 앞으로 꺼낸다.
+        force_foreground(hwnd)
+        click(int(x), int(y))
+        time.sleep(0.15)
+        before = _field_shot(x, y, scale)
+        tap(VK_BACK)
+        time.sleep(0.2)
+        probed = _field_shot(x, y, scale)
+        if _changed(before, probed):
+            break
+        log(f"{label} 날짜 칸이 글쇠를 받지 못함 ({attempt}/3)")
+        time.sleep(0.4)
+    else:
         raise RuntimeError(
             f"{label} 날짜 칸을 누르지 못했습니다. 쿨메신저 창이 다른 창에 가려져 있지 "
             "않은지 확인한 뒤 다시 눌러 주세요."
         )
 
-    type_text(digits[0:4])
-    time.sleep(0.06)
-    tap(VK_RIGHT)
-    type_text(digits[4:6])
-    time.sleep(0.06)
-    tap(VK_RIGHT)
-    type_text(digits[6:8])
-    time.sleep(0.2)
+    # 다시 눌러 «처음부터» 상태로 되돌린 뒤 여덟 자리를 이어서 친다.
+    click(int(x), int(y))
+    time.sleep(0.15)
+    type_text(digits)
+    time.sleep(0.25)
 
-    # 값까지 확인하고 싶지만 칸의 글자를 읽을 수단이 없다. 여기서는 «달라졌다»까지만
-    # 보고, 기간이 맞는지는 내려받은 표의 날짜로 ingest.py 가 다시 본다.
-    if not _changed(probed, _field_shot(x, y, scale)):
-        log(f"{label} 날짜를 넣었지만 화면이 그대로다 — 이미 같은 값이었을 수 있다")
+    # 한 자리 지운 상태(`YYYY-MM-D`, 9글자)와 넣은 값(`YYYY-MM-DD`, 10글자)은 길이가
+    # 달라 언제나 다르게 보인다. 그대로라면 여덟 자리가 칸에 들어가지 않은 것이다.
+    # 숫자 몇 자 차이라 기준치를 캐럿보다만 높게 잡는다.
+    if not _changed(probed, _field_shot(x, y, scale), min_px=40):
+        raise RuntimeError(
+            f"{label} 날짜를 넣지 못했습니다. 쿨메신저 창을 앞으로 꺼낸 뒤 다시 눌러 주세요."
+        )
     log(f"{label} 날짜 {digits[0:4]}-{digits[4:6]}-{digits[6:8]}")
 
 
@@ -563,8 +584,8 @@ def fill_dates_and_download(
     log(f"기간 라벨 {score:.2f} (배율 {scale})")
 
     # 시작 칸에서 TAB 을 누르면 끝 칸이 아니라 옆의 달력 단추로 간다. 각각 누른다.
-    type_into_date_field(sx, sy, start_s, scale, log, "시작")
-    type_into_date_field(ex, ey, end_s, scale, log, "끝")
+    type_into_date_field(hwnd, sx, sy, start_s, scale, log, "시작")
+    type_into_date_field(hwnd, ex, ey, end_s, scale, log, "끝")
     click_download_label(hwnd, log)
 
 
