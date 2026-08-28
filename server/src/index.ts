@@ -4,22 +4,28 @@ import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express from "express";
 import { runPipeline, type Candidate, type UserRole } from "@cool-lin/schedule-engine";
-import { handleLocalAiIngest } from "./localAi.js";
+import { withExtractAndAi } from "./ingestPipeline.js";
+import {
+  handleLocalAiComplete,
+  handleLocalAiIngest,
+  handleRedact,
+  parseIngestBody,
+  runLocalAiIngest,
+} from "./localAi.js";
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
 const pythonDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../python");
 
 /**
- * 로컬 AI 주소.
- *
- * 예전에는 이 서버 자신(127.0.0.1:4000)을 가리키고 있었는데 그 경로가 없어서
- * 매번 실패하고 조용히 묻혔다. 지금은 /api/local-ai/ingest 가 이 서버 자신에
- * 생겼으므로 기본값으로 그걸 가리킨다 (#5). 다른 곳으로 보내고 싶으면
- * 환경변수로 덮어쓰고, 아예 끄고 싶으면 빈 문자열로 설정한다.
+ * 로컬 AI ingest 를 끄려면 LOCAL_AI_INGEST 를 빈 문자열로 둔다.
+ * 예전에는 HTTP 로 자기 자신에 fire-and-forget 했는데, 위젯이 items 를
+ * 같은 응답에서 받아야 해서 지금은 프로세스 안에서 기다린다.
  */
-const LOCAL_AI_INGEST =
-  process.env.LOCAL_AI_INGEST ?? `http://127.0.0.1:${PORT}/api/local-ai/ingest`;
+const LOCAL_AI_ENABLED = (process.env.LOCAL_AI_INGEST ?? "on") !== "";
+
+/** 내려받기(~90s) + Ollama(~120s) 를 한 응답에서 기다리므로 HTTP 한도를 넉넉히. */
+const INGEST_HTTP_TIMEOUT_MS = 240000;
 
 /** 최초 실행에서 교사가 고르는 역할 태그. 이름·학교명은 받지 않는다. */
 const DEFAULT_ROLE: UserRole = { homeroom: true, grades: [2], interests: ["연수", "평가"] };
@@ -100,31 +106,17 @@ async function extractCandidates(file: string): Promise<{
   }
 }
 
-/**
- * 로컬 AI(Ollama)에 넘긴다 (#5).
- *
- * /api/local-ai/ingest 는 파일 경로를 받으면 스스로 xls를 파싱하고, 모델에
- * 넣기 전에 이름·전화·메일·주민번호를 비식별 처리한다 (redact.ts, PRD 7장
- * 신뢰 경계). 그래서 여기서는 candidates(이미 구조화된 값)가 아니라 방금
- * 내려받은 file 경로만 넘긴다 — 원문이 이 프로세스 밖으로 나가지 않는다.
- * 주소가 비어 있거나 Ollama가 꺼져 있어도 /api/ingest 응답 자체는 실패하지
- * 않는다 (fire-and-forget).
- */
-async function forwardToLocalAi(file: string): Promise<void> {
-  if (LOCAL_AI_INGEST === "" || file === "") return;
-  try {
-    // 이 fetch는 /api/ingest 응답을 막지 않는 fire-and-forget 호출이므로,
-    // Ollama 쪽 자체 타임아웃(OLLAMA_TIMEOUT_MS, 기본 120s)보다 짧게 끊어서
-    // 정상적으로 돌고 있는 추론을 조기에 취소하지 않는다.
-    await fetch(LOCAL_AI_INGEST, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file }),
-      signal: AbortSignal.timeout(130000),
-    });
-  } catch {
-    // 로컬 AI가 꺼져 있어도 추출은 성공으로 둔다.
+async function runLocalAiForFile(file: string, sheets?: unknown) {
+  if (!LOCAL_AI_ENABLED) {
+    return {
+      ok: false,
+      items: [],
+      model: undefined,
+      error: "로컬 AI ingest가 꺼져 있습니다.",
+    };
   }
+  const parsed = parseIngestBody({ file, sheets });
+  return runLocalAiIngest({ file: parsed.file ?? file, sheets: parsed.sheets, pythonDir });
 }
 
 app.get("/api/health", (_req, res) => {
@@ -136,7 +128,22 @@ app.post("/api/local-ai/ingest", (req, res) => {
   void handleLocalAiIngest(req, res, pythonDir);
 });
 
-/** 내려받기 → 일정 후보 추출까지 한 번에. 응답 모양은 기존 그대로 두고 candidates 만 더한다. */
+/** 요약·스마트 답장. 본문은 서버에서 비식별한 뒤에만 Ollama 로 보낸다. pii_map 없음. */
+app.post("/api/local-ai/complete", (req, res) => {
+  void handleLocalAiComplete(req, res);
+});
+
+/** 브라우저가 원문을 Ollama 로 직접 보내지 않도록 비식별 텍스트만 돌려 준다. pii_map 없음. */
+app.post("/api/redact", (req, res) => {
+  handleRedact(req, res);
+});
+
+function stretchTimeout(req: express.Request, res: express.Response) {
+  req.setTimeout(INGEST_HTTP_TIMEOUT_MS);
+  res.setTimeout(INGEST_HTTP_TIMEOUT_MS);
+}
+
+/** 내려받기 → 규칙 엔진 → 로컬 AI items 까지 한 응답. Ollama 가 꺼져도 추출은 200. */
 async function handleIngest(mode: "ingest" | "latest", res: express.Response, failStatus: number) {
   try {
     const data = await runIngest(mode);
@@ -145,22 +152,24 @@ async function handleIngest(mode: "ingest" | "latest", res: express.Response, fa
       return;
     }
 
-    const file = typeof data.file === "string" ? data.file : "";
-    const extracted = file === "" ? { candidates: [], stats: null, error: "파일 경로가 없습니다." } : await extractCandidates(file);
-
-    res.status(200).json({
-      ...data,
-      candidates: extracted.candidates,
-      extraction: { count: extracted.candidates.length, stats: extracted.stats, error: extracted.error ?? null },
+    const payload = await withExtractAndAi(data, {
+      extractCandidates,
+      runLocalAi: (file) => runLocalAiForFile(file, data.sheets),
     });
-    void forwardToLocalAi(file);
+    res.status(200).json(payload);
   } catch (e) {
     res.status(400).json({ ok: false, error: e instanceof Error ? e.message : String(e), steps: [] });
   }
 }
 
-app.post("/api/ingest", (_req, res) => void handleIngest("ingest", res, 400));
-app.post("/api/open-latest", (_req, res) => void handleIngest("latest", res, 404));
+app.post("/api/ingest", (req, res) => {
+  stretchTimeout(req, res);
+  void handleIngest("ingest", res, 400);
+});
+app.post("/api/open-latest", (req, res) => {
+  stretchTimeout(req, res);
+  void handleIngest("latest", res, 404);
+});
 
 /** 이미 가지고 있는 파일에서 후보만 다시 뽑고 싶을 때 */
 app.post("/api/candidates", async (req, res) => {

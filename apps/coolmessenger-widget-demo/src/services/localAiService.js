@@ -2,9 +2,9 @@
 // Supports both Browser On-Device Rule-Based NLP & External Local LLMs (Ollama / LM Studio / LocalAI)
 //
 // Schedule extraction is delegated to packages/schedule-engine via
-// scheduleEngineAdapter.js — see that file and ENGINE.md for the
-// Candidate → widget-event mapping. Everything below this (summary,
-// smart-reply, Ollama connectivity) stays local/regex-based.
+// scheduleEngineAdapter.js. Summary and smart-reply send message text
+// through the server redact/complete route so raw PII never leaves the PC
+// toward Ollama from the browser.
 
 import { extractBestEventFromMessage, extractEventsFromMessage } from './scheduleEngineAdapter';
 
@@ -13,7 +13,7 @@ export const AI_SETTINGS_STORAGE_KEY = 'cool_ai_settings';
 export const getDefaultAiSettings = () => ({
   mode: 'hybrid', // 'builtin' | 'ollama' | 'hybrid'
   ollamaEndpoint: 'http://localhost:11434',
-  model: 'llama3:latest',
+  model: 'qwen2.5:3b',
   temperature: 0.3,
   autoExtractSchedule: true,      // 쪽지 수신 시 자동으로 일정 후보 추출
   autoNotifyNewMessage: true,     // 새 쪽지 도착 시 알림 토스트
@@ -38,12 +38,30 @@ export const saveAiSettings = (settings) => {
   localStorage.setItem(AI_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
 };
 
+function serverBase() {
+  const settings = getAiSettings();
+  return (settings.serverEndpoint || 'http://localhost:4000').replace(/\/$/, '');
+}
+
+/**
+ * 요약·답장 본문은 서버에서 비식별한 뒤에만 Ollama 로 보낸다.
+ * pii_map 은 응답에 오지 않는다. 서버가 꺼져 있으면 null.
+ */
+async function completeOnServer(payload) {
+  const res = await fetch(`${serverBase()}/api/local-ai/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(130000),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false || typeof data.text !== 'string' || !data.text.trim()) {
+    return null;
+  }
+  return data.text.trim();
+}
+
 // 1. 일정 추출 — packages/schedule-engine 규칙 엔진에 위임한다.
-//
-// 예전에는 이 파일에 정규식이 직접 들어 있었는데, 날짜 기준이 오늘로 고정돼 있고
-// 제목이 쪽지별로 하드코딩돼 있어 실제 쪽지에는 맞지 않았다. 지금은 엔진이
-// «쪽지를 받은 날»을 기준으로 「모레」·「금요일까지」를 계산하고, 확인이 필요한
-// 부분에는 표시를 붙여 준다. 규칙은 packages/schedule-engine/RULES.md 를 본다.
 
 /**
  * 쪽지에서 일정 하나를 뽑는다. 못 뽑으면 null.
@@ -69,37 +87,20 @@ export function extractSchedulesFromMessage(message) {
 export async function generateAiSummary(message) {
   const settings = getAiSettings();
 
-  // If connected to Ollama and mode allows
   if (settings.mode !== 'builtin') {
     try {
-      const response = await fetch(`${settings.ollamaEndpoint}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: settings.model,
-          prompt: `다음은 학교 교직원 간의 메신저 쪽지 내용입니다. 핵심 내용을 3가지 항목으로 명확하게 한국어로 요약해 주세요.
-
-제목: ${message.subject}
-본문: ${message.bodyHtml.replace(/<[^>]*>/g, ' ')}
-
-형식:
-1. 발신 목적:
-2. 핵심 요구사항:
-3. 마감 기한 및 후속 조치:`,
-          stream: false,
-          options: { temperature: 0.2 }
-        })
+      const text = await completeOnServer({
+        kind: 'summary',
+        subject: message.subject || '',
+        body: (message.bodyHtml || '').replace(/<[^>]*>/g, ' '),
+        counterpart: message.senderName || message.sender || '',
       });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.response) return data.response.trim();
-      }
+      if (text) return text;
     } catch (e) {
-      console.warn('Ollama connection not available, fallback to built-in NLP engine', e);
+      console.warn('server complete unavailable, fallback to built-in NLP engine', e);
     }
   }
 
-  // Built-in intelligent template summarizer
   const clean = message.bodyHtml.replace(/<[^>]*>/g, ' ');
   let deadline = '기한 확인 필요';
   if (clean.includes('8월 27일')) deadline = '2026년 8월 27일(목) 17:00까지';
@@ -119,23 +120,16 @@ export async function generateSmartReply(message, type = 'accept') {
 
   if (settings.mode !== 'builtin') {
     try {
-      const response = await fetch(`${settings.ollamaEndpoint}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: settings.model,
-          prompt: `학교 메신저에서 다음 쪽지에 대한 교사용 정중하고 간결한 답장(유형: ${type})을 작성해주세요. 한국어로 정중하게 작성하세요.
-쪽지 제목: ${message.subject}
-본문: ${message.bodyHtml.replace(/<[^>]*>/g, ' ')}`,
-          stream: false
-        })
+      const text = await completeOnServer({
+        kind: 'reply',
+        replyType: type,
+        subject: message.subject || '',
+        body: (message.bodyHtml || '').replace(/<[^>]*>/g, ' '),
+        counterpart: message.senderName || message.sender || '',
       });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.response) return data.response.trim();
-      }
+      if (text) return text;
     } catch (e) {
-      console.warn('Ollama unavailable, fallback to built-in reply template');
+      console.warn('server complete unavailable, fallback to built-in reply template');
     }
   }
 

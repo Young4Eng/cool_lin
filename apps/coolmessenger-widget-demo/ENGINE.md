@@ -88,3 +88,7 @@ npm --prefix ../../packages/schedule-engine run build
 
 확인된 환경: Node 24 / npm 11 / Windows. 새로 클론해서 `npm install` → `npm run build`
 두 단계만으로 돌아가는 것을 확인했습니다.
+
+## 실제 쿨메신저 -> 로컬 AI items -> 캘린더
+
+교사 버튼은 위젯에 있습니다. `어제~오늘 쪽지 가져오기` 가 `POST /api/ingest` 를 호출하고, 서버는 내려받기와 Ollama ingest 를 기다린 뒤 `items` 를 같은 JSON 에 넣습니다. 위젯은 `aiItemMapper.js` 로 items 를 일정으로 바꾸고, items 가 비면 `candidates` 로 폴백합니다. Ollama 가 꺼져 있어도 추출은 성공합니다. 요약/스마트 답장은 `POST /api/local-ai/complete` 로 서버에서 비식별한 뒤에만 모델로 보냅니다. pii_map 은 브라우저에 내려가지 않습니다.

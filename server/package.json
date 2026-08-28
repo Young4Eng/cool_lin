@@ -8,7 +8,8 @@
     "dev": "tsx watch src/index.ts",
     "prebuild": "node ../packages/schedule-engine/scripts/ensure-built.mjs",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@cool-lin/schedule-engine": "file:../packages/schedule-engine",

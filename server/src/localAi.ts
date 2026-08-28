@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Request, Response } from "express";
-import { previewSheets, redactSheets, type MessageRow } from "./redact.js";
+import { previewSheets, redactMessageFields, redactSheets, type MessageRow } from "./redact.js";
 
 const OLLAMA_URL = process.env.OLLAMA_URL ?? "http://127.0.0.1:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "qwen2.5:3b";
@@ -196,7 +196,7 @@ function parseModelJson(raw: string): ExtractedItem[] {
   return [];
 }
 
-async function callOllama(prompt: string): Promise<{ model: string; raw: string }> {
+async function callOllama(prompt: string, opts: { json?: boolean } = {}): Promise<{ model: string; raw: string }> {
   const url = `${OLLAMA_URL.replace(/\/$/, "")}/api/chat`;
   const res = await fetch(url, {
     method: "POST",
@@ -204,16 +204,18 @@ async function callOllama(prompt: string): Promise<{ model: string; raw: string 
     body: JSON.stringify({
       model: OLLAMA_MODEL,
       stream: false,
-      format: "json",
+      ...(opts.json === false ? {} : { format: "json" }),
       messages: [
         {
           role: "system",
           content:
-            "You extract classroom schedule and task candidates. Reply with JSON only.",
+            opts.json === false
+              ? "You help Korean teachers with classroom messenger notes. Reply in Korean only. Do not restore personal data."
+              : "You extract classroom schedule and task candidates. Reply with JSON only.",
         },
         { role: "user", content: prompt },
       ],
-      options: { temperature: 0.1, num_predict: 1024 },
+      options: { temperature: opts.json === false ? 0.3 : 0.1, num_predict: 1024 },
     }),
     signal: AbortSignal.timeout(OLLAMA_TIMEOUT_MS),
   });
@@ -242,6 +244,115 @@ function ollamaUnavailable(err: unknown): boolean {
   return false;
 }
 
+function ollamaErrorMessage(err: unknown): string {
+  const timedOut =
+    err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+  if (timedOut) return "로컬 Ollama 응답이 시간 초과되었습니다.";
+  if (ollamaUnavailable(err)) return "로컬 Ollama에 연결할 수 없습니다.";
+  return "로컬 Ollama 호출에 실패했습니다.";
+}
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * 파일 경로(또는 sheets)를 받아 비식별 후 로컬 Ollama에서 items 를 뽑는다.
+ * HTTP 가 아니라 /api/ingest 가 같은 응답에 items 를 넣기 위해 직접 호출한다.
+ * Ollama 가 꺼져 있어도 throw 하지 않고 ok:false, items:[] 를 돌려 준다.
+ * pii_map 은 절대 포함하지 않는다.
+ */
+export type LocalAiIngestResult = {
+  ok: boolean;
+  items: ExtractedItem[];
+  model: string;
+  error?: string;
+  warning?: string;
+  file?: string | null;
+  parsed_from_xls?: boolean;
+  redacted_preview?: ReturnType<typeof previewSheets>;
+};
+
+export async function runLocalAiIngest(opts: {
+  file?: string;
+  sheets?: Sheets;
+  pythonDir: string;
+}): Promise<LocalAiIngestResult> {
+  let sheets = opts.sheets ?? {};
+  const file = opts.file;
+  let parsedFromXls = false;
+
+  if (sheetRowCount(sheets) === 0 && file && isCoolmsgXls(file) && existsSync(file)) {
+    try {
+      sheets = await parseXlsFile(file, opts.pythonDir);
+      parsedFromXls = true;
+    } catch {
+      return {
+        ok: false,
+        items: [],
+        model: OLLAMA_MODEL,
+        error: "xls 파일을 읽지 못했습니다.",
+        file: file ?? null,
+      };
+    }
+  }
+
+  if (sheetRowCount(sheets) === 0 && !file) {
+    return {
+      ok: false,
+      items: [],
+      model: OLLAMA_MODEL,
+      error: "sheets 또는 file 이 필요합니다.",
+    };
+  }
+
+  const { sheets: redacted } = redactSheets(sheets);
+  const redacted_preview = previewSheets(redacted);
+
+  if (sheetRowCount(redacted) === 0) {
+    return {
+      ok: true,
+      items: [],
+      model: OLLAMA_MODEL,
+      file: file ?? null,
+      parsed_from_xls: parsedFromXls,
+      redacted_preview,
+    };
+  }
+
+  let ollama;
+  try {
+    ollama = await callOllama(buildPrompt(redacted));
+  } catch (err) {
+    return {
+      ok: false,
+      items: [],
+      model: OLLAMA_MODEL,
+      error: ollamaErrorMessage(err),
+      file: file ?? null,
+      parsed_from_xls: parsedFromXls,
+    };
+  }
+
+  let items: ExtractedItem[] = [];
+  let warning: string | undefined;
+  try {
+    items = parseModelJson(ollama.raw);
+  } catch {
+    warning = "모델 응답을 JSON으로 해석하지 못했습니다.";
+  }
+
+  return {
+    ok: true,
+    model: ollama.model,
+    items,
+    file: file ?? null,
+    parsed_from_xls: parsedFromXls,
+    redacted_preview,
+    ...(warning ? { warning } : {}),
+  };
+}
+
 export async function handleLocalAiIngest(
   req: Request,
   res: Response,
@@ -249,88 +360,32 @@ export async function handleLocalAiIngest(
 ): Promise<void> {
   try {
     const parsed = parseIngestBody(req.body);
-    let sheets = parsed.sheets;
-    const file = parsed.file;
-    let parsedFromXls = false;
+    const result = await runLocalAiIngest({
+      file: parsed.file,
+      sheets: parsed.sheets,
+      pythonDir,
+    });
 
-    if (sheetRowCount(sheets) === 0 && file && isCoolmsgXls(file) && existsSync(file)) {
-      try {
-        sheets = await parseXlsFile(file, pythonDir);
-        parsedFromXls = true;
-      } catch {
-        res.status(400).json({
-          ok: false,
-          error: "xls 파일을 읽지 못했습니다.",
-          model: OLLAMA_MODEL,
-        });
-        return;
-      }
-    }
-
-    if (sheetRowCount(sheets) === 0 && !file) {
-      res.status(400).json({
+    if (!result.ok) {
+      const isBadInput =
+        result.error === "sheets 또는 file 이 필요합니다." ||
+        result.error === "xls 파일을 읽지 못했습니다.";
+      res.status(isBadInput ? 400 : 503).json({
         ok: false,
-        error: "sheets 또는 file 이 필요합니다.",
-        model: OLLAMA_MODEL,
+        error: result.error,
+        model: result.model ?? OLLAMA_MODEL,
       });
       return;
-    }
-
-    const { sheets: redacted } = redactSheets(sheets);
-    const redacted_preview = previewSheets(redacted);
-
-    if (sheetRowCount(redacted) === 0) {
-      res.status(200).json({
-        ok: true,
-        model: OLLAMA_MODEL,
-        items: [],
-        redacted_preview,
-        file: file ?? null,
-        parsed_from_xls: parsedFromXls,
-      });
-      return;
-    }
-
-    let ollama;
-    try {
-      ollama = await callOllama(buildPrompt(redacted));
-    } catch (err) {
-      if (ollamaUnavailable(err)) {
-        const timedOut =
-          err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
-        res.status(503).json({
-          ok: false,
-          error: timedOut
-            ? "로컬 Ollama 응답이 시간 초과되었습니다."
-            : "로컬 Ollama에 연결할 수 없습니다.",
-          model: OLLAMA_MODEL,
-        });
-        return;
-      }
-      res.status(503).json({
-        ok: false,
-        error: "로컬 Ollama 호출에 실패했습니다.",
-        model: OLLAMA_MODEL,
-      });
-      return;
-    }
-
-    let items: ExtractedItem[] = [];
-    let warning: string | undefined;
-    try {
-      items = parseModelJson(ollama.raw);
-    } catch {
-      warning = "모델 응답을 JSON으로 해석하지 못했습니다.";
     }
 
     res.status(200).json({
       ok: true,
-      model: ollama.model,
-      items,
-      redacted_preview,
-      file: file ?? null,
-      parsed_from_xls: parsedFromXls,
-      ...(warning ? { warning } : {}),
+      model: result.model,
+      items: result.items,
+      redacted_preview: result.redacted_preview ?? [],
+      file: result.file ?? null,
+      parsed_from_xls: result.parsed_from_xls ?? false,
+      ...(result.warning ? { warning: result.warning } : {}),
     });
   } catch {
     res.status(500).json({
@@ -339,4 +394,89 @@ export async function handleLocalAiIngest(
       model: OLLAMA_MODEL,
     });
   }
+}
+
+/**
+ * 요약·스마트 답장. 본문은 서버에서 비식별한 뒤에만 Ollama 로 보낸다.
+ * pii_map 은 응답에 넣지 않는다.
+ */
+export async function handleLocalAiComplete(req: Request, res: Response): Promise<void> {
+  try {
+    const kind = req.body?.kind === "reply" ? "reply" : "summary";
+    const subject = typeof req.body?.subject === "string" ? req.body.subject : "";
+    const bodyRaw =
+      typeof req.body?.body === "string"
+        ? req.body.body
+        : typeof req.body?.bodyHtml === "string"
+          ? req.body.bodyHtml
+          : "";
+    const counterpart = typeof req.body?.counterpart === "string" ? req.body.counterpart : "";
+    const replyType = typeof req.body?.replyType === "string" ? req.body.replyType : "accept";
+
+    const redacted = redactMessageFields({
+      subject,
+      body: stripHtml(bodyRaw),
+      counterpart,
+    });
+
+    const prompt =
+      kind === "reply"
+        ? [
+            "학교 메신저에서 다음 쪽지에 대한 교사용 정중하고 간결한 답장을 한국어로 작성하세요.",
+            `답장 유형: ${replyType}`,
+            "이미 가명 처리된 텍스트입니다. 개인정보를 복원하지 마세요.",
+            `쪽지 제목: ${redacted.subject}`,
+            `본문: ${redacted.body}`,
+          ].join("\n")
+        : [
+            "다음은 학교 교직원 간의 메신저 쪽지 내용입니다. 핵심 내용을 3가지 항목으로 명확하게 한국어로 요약해 주세요.",
+            "이미 가명 처리된 텍스트입니다. 개인정보를 복원하지 마세요.",
+            `제목: ${redacted.subject}`,
+            `본문: ${redacted.body}`,
+            "",
+            "형식:",
+            "1. 발신 목적:",
+            "2. 핵심 요구사항:",
+            "3. 마감 기한 및 후속 조치:",
+          ].join("\n");
+
+    const ollama = await callOllama(prompt, { json: false });
+    res.status(200).json({
+      ok: true,
+      text: ollama.raw.trim(),
+      model: ollama.model,
+    });
+  } catch (err) {
+    const timedOut =
+      err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+    res.status(ollamaUnavailable(err) ? 503 : 500).json({
+      ok: false,
+      error: timedOut
+        ? "로컬 Ollama 응답이 시간 초과되었습니다."
+        : ollamaUnavailable(err)
+          ? "로컬 Ollama에 연결할 수 없습니다."
+          : "로컬 AI 요청에 실패했습니다.",
+    });
+  }
+}
+
+/**
+ * 브라우저가 원문을 들고 Ollama 로 가지 않도록, 비식별 텍스트만 돌려 준다.
+ * pii_map 은 포함하지 않는다.
+ */
+export function handleRedact(req: Request, res: Response): void {
+  const text = typeof req.body?.text === "string" ? req.body.text : "";
+  const subject = typeof req.body?.subject === "string" ? req.body.subject : "";
+  const counterpart = typeof req.body?.counterpart === "string" ? req.body.counterpart : "";
+  const redacted = redactMessageFields({
+    subject,
+    body: stripHtml(text),
+    counterpart,
+  });
+  res.json({
+    ok: true,
+    text: redacted.body,
+    subject: redacted.subject,
+    counterpart: redacted.counterpart,
+  });
 }

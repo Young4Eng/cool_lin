@@ -153,3 +153,28 @@ export function previewSheets(
   }
   return preview;
 }
+
+export function redactMessageFields(input: {
+  subject?: string;
+  body?: string;
+  counterpart?: string;
+}): { subject: string; body: string; counterpart: string } {
+  const sheets: Record<string, MessageRow[]> = {
+    쪽지: [
+      {
+        제목: input.subject ?? "",
+        내용: input.body ?? "",
+        보낸사람: input.counterpart ?? "",
+        받은사람: "",
+        첨부파일: "",
+      },
+    ],
+  };
+  const { sheets: redacted } = redactSheets(sheets);
+  const row = redacted["쪽지"]?.[0] ?? {};
+  return {
+    subject: row["제목"] ?? "",
+    body: row["내용"] ?? "",
+    counterpart: row["보낸사람"] ?? "",
+  };
+}

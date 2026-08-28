@@ -4,6 +4,7 @@ import {
   ChevronDown, ChevronUp, MonitorUp
 } from 'lucide-react';
 import MiniCalendar from './MiniCalendar';
+import CoolMessengerIngestBar from './CoolMessengerIngestBar';
 import EventList from './EventList';
 import TodoList from './TodoList';
 import EventEditorModal from './EventEditorModal';
@@ -176,6 +177,8 @@ export default function ScheduleWidget({
           {activeTab === 'calendar' && (
             <>
               {/* Mini Calendar (Collapsible in compact mode) */}
+              <CoolMessengerIngestBar onAddEvent={onAddEvent} compact={isCompact} />
+
               {!isCompact && (
                 <MiniCalendar
                   events={calendarEvents}
