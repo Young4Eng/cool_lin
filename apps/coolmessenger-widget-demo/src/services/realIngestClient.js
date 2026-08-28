@@ -10,9 +10,11 @@ function serverBase() {
   return (settings.serverEndpoint || 'http://localhost:4000').replace(/\/$/, '');
 }
 
-async function postJson(path, { timeoutMs = INGEST_TIMEOUT_MS } = {}) {
+async function postJson(path, { timeoutMs = INGEST_TIMEOUT_MS, body } = {}) {
   const res = await fetch(`${serverBase()}${path}`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? '{}' : JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
   });
   const data = await res.json().catch(() => ({}));
@@ -22,8 +24,10 @@ async function postJson(path, { timeoutMs = INGEST_TIMEOUT_MS } = {}) {
   return data;
 }
 
-export async function fetchFreshFromCoolMessenger() {
-  const data = await postJson('/api/ingest', { timeoutMs: INGEST_TIMEOUT_MS });
+export async function fetchFreshFromCoolMessenger(period) {
+  const body =
+    period?.start && period?.end ? { startDate: period.start, endDate: period.end } : {};
+  const data = await postJson('/api/ingest', { timeoutMs: INGEST_TIMEOUT_MS, body });
   return toResult(data);
 }
 

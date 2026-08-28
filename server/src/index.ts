@@ -5,6 +5,7 @@ import cors from "cors";
 import express from "express";
 import { runPipeline, type Candidate, type UserRole } from "@cool-lin/schedule-engine";
 import { withExtractAndAi } from "./ingestPipeline.js";
+import { parseIngestPeriod } from "./ymd.js";
 import {
   handleLocalAiComplete,
   handleLocalAiIngest,
@@ -41,10 +42,16 @@ function pythonCmd(): { cmd: string; prefix: string[] } {
   return { cmd: "python3", prefix: [] };
 }
 
-function runIngest(mode: "ingest" | "latest"): Promise<Record<string, unknown>> {
+type IngestPeriod = { start?: string; end?: string };
+
+function runIngest(mode: "ingest" | "latest", period?: IngestPeriod): Promise<Record<string, unknown>> {
   const { cmd, prefix } = pythonCmd();
+  const args = [...prefix, "ingest.py", mode];
+  if (mode === "ingest" && period?.start && period?.end) {
+    args.push(period.start, period.end);
+  }
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, [...prefix, "ingest.py", mode], {
+    const child = spawn(cmd, args, {
       cwd: pythonDir,
       windowsHide: true,
       env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" },
@@ -144,9 +151,14 @@ function stretchTimeout(req: express.Request, res: express.Response) {
 }
 
 /** 내려받기 → 규칙 엔진 → 로컬 AI items 까지 한 응답. Ollama 가 꺼져도 추출은 200. */
-async function handleIngest(mode: "ingest" | "latest", res: express.Response, failStatus: number) {
+async function handleIngest(
+  mode: "ingest" | "latest",
+  res: express.Response,
+  failStatus: number,
+  period?: IngestPeriod,
+) {
   try {
-    const data = await runIngest(mode);
+    const data = await runIngest(mode, period);
     if (!data.ok) {
       res.status(failStatus).json(data);
       return;
@@ -164,7 +176,16 @@ async function handleIngest(mode: "ingest" | "latest", res: express.Response, fa
 
 app.post("/api/ingest", (req, res) => {
   stretchTimeout(req, res);
-  void handleIngest("ingest", res, 400);
+  const period = parseIngestPeriod(req.body);
+  if (!period.ok) {
+    res.status(400).json({ ok: false, error: period.error, steps: [] });
+    return;
+  }
+  const range =
+    period.start !== undefined && period.end !== undefined
+      ? { start: period.start, end: period.end }
+      : undefined;
+  void handleIngest("ingest", res, 400, range);
 });
 app.post("/api/open-latest", (req, res) => {
   stretchTimeout(req, res);
