@@ -10,7 +10,7 @@ import {
 } from '../../services/storageService';
 import { subscribeAiEventAdded } from '../../utils/widgetSync';
 import { ingestOnce } from '../../services/widgetIngest';
-import { ensureAutostartOnFirstRun, inDesktopShell, setAutostart } from '../../services/desktopShell';
+import { ensureAutostartOnFirstRun, inDesktopShell, setAutostart, withWidgetHidden } from '../../services/desktopShell';
 
 // 바탕화면 일정 위젯 — 설치본에서는 이 창 하나만 뜬다.
 //
@@ -83,7 +83,12 @@ export default function DesktopCalendarWidget() {
 
     try {
       const current = loadStoredSchedule();
-      const result = await ingestOnce(current, mode);
+      // 쿨메신저 창을 실제로 조작하는 동안에는 위젯이 비켜 준다.
+      // 「항상 위」인 채로 두면 자동화가 메신저를 앞으로 꺼내지 못한다.
+      const result =
+        mode === 'fresh'
+          ? await withWidgetHidden(() => ingestOnce(current, mode))
+          : await ingestOnce(current, mode);
       if (result.added.length > 0 || result.forReview.length > 0) {
         persistEvents(result.next);
       }

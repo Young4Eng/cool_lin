@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp, Mail } from 'lucide-react';
+import { Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { eventSummary } from '../../utils/summarizeMessage';
 
-// 카드 하나에 색을 여러 개 쓰지 않는다.
+// 카드에는 «무엇을 · 언제 · 무슨 내용» 셋만 둔다.
 //
-// 예전에는 분류·AI·신뢰도·확인표시·D-Day 가 저마다 색 배지를 달고 있어서, 한 화면에
-// 색이 여섯 가지씩 떴다. 교사가 위젯을 흘깃 볼 때 필요한 것은 «무엇을 언제»이지
-// 배지 색이 아니다. 위계는 색이 아니라 **크기와 굵기**로 만들고, 색은 오늘/지남처럼
-// 정말 다른 상태에만 쓴다.
+// 예전에는 분류·AI·신뢰도·확인표시·판단근거·원문안내가 카드마다 줄줄이 붙어 있었다.
+// 위젯은 흘깃 보는 자리라 그 줄들은 정작 알고 싶은 «무슨 얘기냐»를 밀어냈다.
+// 엔진이 어떻게 판단했는지는 검토함에서만 보여 준다.
 
 /** 로컬 자정 기준으로 날짜 차이를 센다. 위젯은 매일 켜져 있으므로 오늘은 «진짜 오늘»이다. */
 export function dDay(dateStr) {
@@ -24,10 +24,10 @@ function DDayLabel({ days }) {
     days === 0
       ? 'bg-rose-600 text-white'
       : days > 0 && days <= 3
-        ? 'bg-slate-900 text-white'
+        ? 'bg-[#1D1715] text-white'
         : days > 0
-          ? 'bg-slate-100 text-slate-600'
-          : 'bg-slate-50 text-slate-400';
+          ? 'bg-[#F0EFEB] text-[#5B5550]'
+          : 'bg-[#F8F8F5] text-[#A8A29B]';
   return (
     <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${tone}`}>
       {label}
@@ -39,97 +39,77 @@ function EventCard({ event, mode, onDeleteEvent, onOpenSource, onApproveEvent })
   const [expanded, setExpanded] = useState(false);
   const days = dDay(event.date);
   const flags = event.ambiguityFlags ?? [];
+  const summary = eventSummary(event);
 
   return (
     <article
       onDoubleClick={() => onOpenSource?.(event)}
       title={event.source ? '더블클릭 — 쪽지 원문 보기' : undefined}
       className={`group rounded-lg border bg-white px-3 py-2.5 transition-colors ${
-        days === 0 ? 'border-slate-300' : 'border-slate-200'
-      } ${onOpenSource ? 'hover:border-slate-300 hover:bg-slate-50/60' : ''}`}
+        days === 0 ? 'border-[#D6D3CC]' : 'border-[#E5E4E0]'
+      } ${onOpenSource ? 'hover:border-[#C9C5BD] hover:bg-[#FCFCFA]' : ''}`}
     >
       {/* 제목이 가장 크고 굵다 — 흘깃 볼 때 이것만 읽힌다 */}
       <div className="flex items-start justify-between gap-2">
-        <h3 className="min-w-0 text-[13px] font-semibold leading-snug text-slate-900">{event.title}</h3>
+        <h3 className="min-w-0 text-[13px] font-semibold leading-snug text-[#1D1715]">{event.title}</h3>
         <DDayLabel days={days} />
       </div>
 
-      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-[#7A736C]">
         <span className="flex items-center gap-1 tabular-nums">
-          <Clock size={10.5} className="text-slate-400" />
+          <Clock size={10.5} className="text-[#A8A29B]" />
           {event.date}
           {event.time ? ` ${event.time}` : ''}
         </span>
         {event.location && (
           <span className="flex min-w-0 items-center gap-1">
-            <MapPin size={10.5} className="shrink-0 text-slate-400" />
+            <MapPin size={10.5} className="shrink-0 text-[#A8A29B]" />
             <span className="truncate">{event.location}</span>
           </span>
         )}
       </div>
 
-      {/* 분류·출처는 조용한 한 줄로 */}
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-slate-400">
-        <span className="font-medium">{event.category || '업무'}</span>
-        {event.fromAi && (
-          <>
-            <span aria-hidden>·</span>
-            <span>쪽지에서 자동 추출</span>
-          </>
-        )}
-        {event.confidenceBand && event.confidenceBand !== '높음' && (
-          <>
-            <span aria-hidden>·</span>
-            <span className="text-amber-600">신뢰도 {event.confidenceBand}</span>
-          </>
-        )}
-        {event.source && (
-          <>
-            <span aria-hidden>·</span>
-            <span className="flex items-center gap-0.5 group-hover:text-slate-600">
-              <Mail size={9} /> 더블클릭 원문
-            </span>
-          </>
-        )}
-      </div>
-
-      {flags.length > 0 && (
-        <p className="mt-1.5 text-[10.5px] leading-relaxed text-amber-700">
-          확인 필요 — {flags.join(' · ')}
-        </p>
+      {/* 무슨 내용인지 — 원문에서 인사말을 걷어낸 첫 문장 */}
+      {summary && (
+        <p className="mt-1.5 line-clamp-2 text-[11.5px] leading-relaxed text-[#5B5550]">{summary}</p>
       )}
 
-      {event.reasoning?.length > 0 && (
-        <div className="mt-1.5">
-          <button
-            type="button"
-            onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-0.5 text-[10.5px] font-medium text-slate-500 hover:text-slate-800"
-          >
-            {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-            판단 근거
-          </button>
-          {expanded && (
-            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10.5px] leading-relaxed text-slate-500">
-              {event.reasoning.map((r, i) => (
-                <li key={i}>{r}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
+      {/* 검토함에서만: 왜 자동으로 넣지 않았는지 */}
       {mode === 'review' && (
-        <div className="mt-2 border-t border-slate-100 pt-2">
+        <div className="mt-2 border-t border-[#EFEEEA] pt-2">
+          {flags.length > 0 && (
+            <p className="mb-1 text-[10.5px] leading-relaxed text-amber-700">
+              확인 필요 — {flags.join(' · ')}
+            </p>
+          )}
           {event.autoRegisterBlockers?.length > 0 && (
-            <p className="mb-1.5 text-[10.5px] leading-relaxed text-slate-500">
+            <p className="mb-1.5 text-[10.5px] leading-relaxed text-[#7A736C]">
               자동 등록하지 않은 이유 — {event.autoRegisterBlockers.join(' · ')}
             </p>
+          )}
+          {event.reasoning?.length > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => setExpanded(!expanded)}
+                className="mb-1.5 flex items-center gap-0.5 text-[10.5px] font-medium text-[#7A736C] hover:text-[#1D1715]"
+              >
+                {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                판단 근거
+              </button>
+              {expanded && (
+                <ul className="mb-1.5 list-disc space-y-0.5 pl-4 text-[10.5px] leading-relaxed text-[#7A736C]">
+                  {event.reasoning.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
           <button
             type="button"
             onClick={() => onApproveEvent?.(event.id)}
-            className="flex w-full items-center justify-center gap-1 rounded-md bg-slate-900 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-700"
+            className="flex w-full items-center justify-center gap-1 rounded-md bg-[#1D1715] py-1.5 text-[11px] font-semibold text-white hover:bg-[#3A322D]"
           >
             <CheckCircle2 size={12} /> 캘린더에 반영
           </button>
@@ -141,7 +121,7 @@ function EventCard({ event, mode, onDeleteEvent, onOpenSource, onApproveEvent })
         <button
           type="button"
           onClick={() => onDeleteEvent?.(event.id)}
-          className="rounded p-0.5 text-slate-300 opacity-0 transition-opacity hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
+          className="rounded p-0.5 text-[#C9C5BD] opacity-0 transition-opacity hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
           title="이 일정 삭제"
           aria-label={`${event.title} 삭제`}
         >
@@ -158,7 +138,7 @@ function Scroller({ children }) {
 
 function Empty({ children }) {
   return (
-    <div className="px-2 py-10 text-center text-[11.5px] leading-relaxed text-slate-400">{children}</div>
+    <div className="px-2 py-10 text-center text-[11.5px] leading-relaxed text-[#A8A29B]">{children}</div>
   );
 }
 
@@ -224,7 +204,7 @@ export default function EventList({
           <button
             type="button"
             onClick={() => setShowPast(!showPast)}
-            className="flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-[10.5px] text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+            className="flex w-full items-center justify-center gap-1 rounded-md py-1.5 text-[10.5px] text-[#A8A29B] hover:bg-[#F8F8F5] hover:text-[#5B5550]"
           >
             {showPast ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
             지난 일정 {past.length}건

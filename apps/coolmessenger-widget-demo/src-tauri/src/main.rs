@@ -104,6 +104,23 @@ fn refresh_autostart_path(app: &AppHandle) {
     let _ = mgr.enable();
 }
 
+/// 쿨메신저에서 가져오는 동안 위젯을 잠깐 비켜 준다.
+///
+/// 가져오기는 사람이 누르는 것과 같은 방법으로 쿨메신저 창을 조작한다(기술계획서 7.7).
+/// 그런데 이 위젯은 «항상 위»이고, 버튼을 누른 직후에는 포그라운드까지 쥐고 있다.
+/// 그 상태로는 자동화가 메신저 창을 앞으로 꺼내지 못하고, 화면을 찍으면 메신저 대신
+/// 위젯 픽셀이 찍혀 단추를 찾지 못한다.
+#[tauri::command]
+fn set_widget_visible(app: AppHandle, visible: bool) {
+    if let Some(win) = app.get_webview_window(WIDGET) {
+        if visible {
+            let _ = win.show();
+        } else {
+            let _ = win.hide();
+        }
+    }
+}
+
 /// 지금 부팅 자동 실행이 켜져 있는가.
 #[tauri::command]
 fn autostart_status(app: AppHandle) -> bool {
@@ -130,7 +147,11 @@ fn main() {
         }))
         // HKCU\...\Run 에 사용자별 항목만 만든다 (기술계획서 7.9).
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
-        .invoke_handler(tauri::generate_handler![autostart_status, autostart_set])
+        .invoke_handler(tauri::generate_handler![
+            autostart_status,
+            autostart_set,
+            set_widget_visible
+        ])
         .setup(|app| {
             place_widget(app.handle());
             refresh_autostart_path(app.handle());
