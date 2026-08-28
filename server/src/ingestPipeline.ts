@@ -13,6 +13,7 @@ export type LocalAiIngestResult = {
   model?: string;
   error?: string;
   warning?: string;
+  pii_tokens?: string[];
 };
 
 export type AiStatus = {
@@ -43,6 +44,7 @@ export async function withExtractAndAi(
       : await deps.extractCandidates(file);
 
   let items: ExtractedItem[] = [];
+  let pii_tokens: string[] = [];
   let ai: AiStatus =
     file === ""
       ? { ok: false, error: "파일 경로가 없습니다." }
@@ -52,6 +54,7 @@ export async function withExtractAndAi(
     try {
       const aiResult = await deps.runLocalAi(file);
       items = Array.isArray(aiResult.items) ? aiResult.items : [];
+      pii_tokens = Array.isArray(aiResult.pii_tokens) ? aiResult.pii_tokens : [];
       ai = aiResult.ok
         ? { ok: true, model: aiResult.model }
         : {
@@ -61,6 +64,7 @@ export async function withExtractAndAi(
           };
     } catch (e) {
       items = [];
+      pii_tokens = [];
       ai = { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
   }
@@ -75,5 +79,6 @@ export async function withExtractAndAi(
     },
     items,
     ai,
+    pii_tokens,
   };
 }
