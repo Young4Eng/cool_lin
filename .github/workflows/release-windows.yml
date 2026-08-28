@@ -1,0 +1,79 @@
+name: Windows NSIS
+
+# 교실 PC 에 그대로 가져가 설치할 수 있는 하나짜리 설치본을 만든다.
+#
+# 넣는 것: 위젯(Tauri) + 쿨메신저 자동화 파이썬 + embeddable CPython + pillow/numpy/opencv.
+# 넣지 않는 것: Ollama 와 모델(용량·라이선스), CoolMessenger.exe(목업), 실제 쪽지 xls(개인정보).
+#
+# 태그를 밀면 GitHub Release 까지 올라간다. 태그 없이 손으로 돌리면 artifact 만 남는다.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+      # 번들에 넣을 CPython 은 스크립트가 따로 내려받는다. 여기 파이썬은 그 스크립트가
+      # 아니라 CI 자체가 쓰는 것이라 버전이 같을 필요는 없다.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build schedule-engine
+        working-directory: packages/schedule-engine
+        run: npm ci
+      - name: Compile schedule-engine
+        working-directory: packages/schedule-engine
+        run: npm run build
+      - name: Test schedule-engine
+        working-directory: packages/schedule-engine
+        run: npm test
+
+      - name: Install widget deps
+        working-directory: apps/coolmessenger-widget-demo
+        run: npm ci
+      # 규칙 엔진과 비식별이 깨진 채로 설치본이 나가면 교실에서야 드러난다.
+      - name: Test widget
+        working-directory: apps/coolmessenger-widget-demo
+        run: npm test
+
+      - name: Bundle embeddable CPython
+        shell: pwsh
+        run: ./scripts/prepare-windows-python.ps1
+
+      - name: Build NSIS installer
+        working-directory: apps/coolmessenger-widget-demo
+        run: npx tauri build --bundles nsis
+
+      # 설치본 안에 개인정보나 목업 바이너리가 딸려 들어가지 않았는지 본다.
+      # 한 번 나가면 되돌릴 수 없는 종류의 실수라 빌드 뒤에 반드시 확인한다.
+      - name: Check the bundle carries no personal data
+        shell: pwsh
+        run: ./scripts/check-bundle-clean.ps1
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: cool-lin-widget-nsis
+          path: apps/coolmessenger-widget-demo/src-tauri/target/release/bundle/nsis/*.exe
+
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            apps/coolmessenger-widget-demo/src-tauri/target/release/bundle/nsis/*.exe
+            docs/설치순서.md
+          body_path: docs/설치순서.md
