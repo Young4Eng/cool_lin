@@ -45,3 +45,24 @@ npm run dev:client
 ```bash
 npm run build
 ```
+
+## 쿨메신저 메시지 엑셀 내려받기 (이슈 #1)
+
+이 기능은 이미 켜 있는 쿨메신저(모의) 창을 조작한다. 메신저를 새로 켜지 않고, 메인 창이든 메시지 관리함이 이미 열려 있든 어제~오늘 텍스트를 xls로 받는다.
+
+Windows에서 Python 의존성을 설치한다:
+
+```bash
+pip install -r server/python/requirements.txt
+```
+
+그다음 앱을 실행한다:
+
+```bash
+npm run install:all
+npm run dev
+```
+
+브라우저에서 http://localhost:5173 을 연 뒤, 쿨메신저가 이미 실행 중이면 `어제~오늘 메시지 가져오기` 버튼을 누른다.
+
+로컬 AI 일정 추출은 이 작업 범위가 아니다 (이슈 #2).
