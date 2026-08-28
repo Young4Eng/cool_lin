@@ -25,7 +25,7 @@ import { SCHOOL_MEMBERS } from './data/initialData';
 import { notifyAiEventAdded } from './utils/widgetSync';
 import { openDesktopWidget } from './utils/desktopWidgetLauncher';
 import { getWidgetAutoStart } from './utils/widgetAutoStart';
-import { extractScheduleFromText, getAiSettings } from './services/localAiService';
+import { extractSchedulesFromMessage, getAiSettings } from './services/localAiService';
 import { notify } from './services/notificationService';
 import { useIsMobile } from './hooks/useIsMobile';
 
@@ -59,19 +59,21 @@ export default function App() {
     if (unprocessedUnread.length === 0) return;
 
     unprocessedUnread.forEach(msg => {
-      const event = extractScheduleFromText(msg.bodyHtml, msg.subject, {
-        senderFlaggedCalendar: !!msg.linkToCalendar,
-      });
-      if (event) {
+      // 한 쪽지에 일정이 여럿 있을 수 있으므로 전부 받는다 (스케줄 엔진 위임).
+      const detected = extractSchedulesFromMessage(msg);
+      detected.forEach(event => {
         event.sourceMessageId = msg.id;
+        // 발신자가 "캘린더 연동"으로 표시해둔 쪽지는 사람이 이미 한 번
+        // 보증한 것으로 보고 검토함을 건너뛴다.
+        if (msg.linkToCalendar) event.reviewed = true;
         handleAddEvent(event, { silent: true });
-      }
+      });
       processedIds.add(msg.id);
 
       notify({
         kind: 'newMessage',
         title: '새 쪽지 도착 & 자동 정리 완료',
-        message: `"${msg.subject}"${event ? ' — 일정을 자동으로 분석해 캘린더/검토함에 반영했어요.' : ''}`,
+        message: `"${msg.subject}"${detected.length > 0 ? ` — 일정 ${detected.length}건을 자동으로 분석해 캘린더/검토함에 반영했어요.` : ''}`,
       });
     });
     saveStoredIdSet(AI_PROCESSED_IDS_KEY, processedIds);

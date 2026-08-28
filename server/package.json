@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node ../packages/schedule-engine/scripts/ensure-built.mjs",
     "dev": "tsx watch src/index.ts",
+    "prebuild": "node ../packages/schedule-engine/scripts/ensure-built.mjs",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@cool-lin/schedule-engine": "file:../packages/schedule-engine",
     "cors": "^2.8.5",
     "express": "^5.1.0"
   },

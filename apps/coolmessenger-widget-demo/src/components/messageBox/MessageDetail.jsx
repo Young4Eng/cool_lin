@@ -37,10 +37,14 @@ export default function MessageDetail({
   const handleExtractAndRegisterSchedule = () => {
     setIsExtracting(true);
     setTimeout(() => {
-      const event = extractScheduleFromText(message.bodyHtml, message.subject, {
-        senderFlaggedCalendar: !!message.linkToCalendar,
-      });
-      if (event) event.sourceMessageId = message.id;
+      // 기준 시각은 쪽지를 받은 날이다. 이걸 넘기지 않으면 «모레»를 계산할 수 없다.
+      const event = extractScheduleFromText(message.bodyHtml, message.subject, message.timestamp);
+      if (event) {
+        event.sourceMessageId = message.id;
+        // 발신자가 "캘린더 연동"으로 표시해둔 쪽지는 엔진의 신뢰도 판단과
+        // 별개로 사람이 이미 한 번 보증한 것으로 보고 검토함을 건너뛴다.
+        if (message.linkToCalendar) event.reviewed = true;
+      }
       setExtractedEvent(event);
       setIsExtracting(false);
 

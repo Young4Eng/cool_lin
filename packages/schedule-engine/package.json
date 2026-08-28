@@ -6,7 +6,16 @@
   "description": "쿨메신저 XLS → 일정 후보 추출·분류 엔진 (역할 3: 데이터 학습·규칙 도출)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "default": "./dist/browser.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "analyze": "tsx scripts/analyze.ts",
@@ -14,6 +23,7 @@
     "eval": "tsx scripts/evaluate.ts",
     "sample": "tsx scripts/sample.ts",
     "trace": "tsx scripts/trace.ts",
+    "audit": "tsx scripts/audit-titles.ts",
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
@@ -23,5 +33,12 @@
     "@types/node": "^24.3.0",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
-  }
+  },
+  "files": [
+    "dist",
+    "RULES.md",
+    "README.md",
+    "EVALUATION.md",
+    "fixtures/sample-output.json"
+  ]
 }
