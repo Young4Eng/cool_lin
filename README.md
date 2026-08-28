@@ -7,7 +7,7 @@
 ```
 client/                          React + TypeScript (Vite)  — http://localhost:5173
 server/                          Express + TypeScript       — http://localhost:4000
-packages/schedule-engine/        쿨메신저 .xls → 일정 후보 추출 규칙 엔진 (역할 3)
+packages/schedule-engine/        쿨메신저 .xls → 일정 후보 추출 규칙 엔진 (역할 3, issue #2)
 apps/coolmessenger-widget-demo/  독립 실행형 데모: 로컬 AI 일정 추출 + 데스크톱 위젯 (역할 1+2, 임시)
 ```
 
