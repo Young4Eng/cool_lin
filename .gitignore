@@ -16,3 +16,7 @@ coolexcel/
 # 실제 데이터로 만든 추출 결과 (실명 포함 가능)
 candidates.json
 *.candidates.json
+
+# 목업 메신저 레퍼런스 바이너리 (3MB PE) — 추출 소스만 커밋한다
+#   docs/reference/coolmessenger-gentoo/ 참조
+CoolMessenger.exe

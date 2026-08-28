@@ -9,7 +9,16 @@ client/                          React + TypeScript (Vite)  — http://localhost
 server/                          Express + TypeScript       — http://localhost:4000
 packages/schedule-engine/        쿨메신저 .xls → 일정 후보 추출 규칙 엔진 (역할 3, issue #2)
 apps/coolmessenger-widget-demo/  독립 실행형 데모: 로컬 AI 일정 추출 + 데스크톱 위젯 (역할 1+2, 임시)
+docs/reference/coolmessenger-gentoo/  목업 메신저 "정답지" — CoolMessenger.exe(GENTOO 빌드)에서 추출
 ```
+
+### 목업 메신저 레퍼런스 (정답지)
+
+`CoolMessenger.exe` 는 팀원이 만든 완결형 목업 "CoolMessenger GENTOO"(Neutralino + React) 다.
+그 웹앱 소스를 `docs/reference/coolmessenger-gentoo/` 로 추출해 두었고, 이걸 기준으로
+`apps/coolmessenger-widget-demo` 의 목업 쿨메신저 UI·동작·시드 데이터를 맞춰 나간다.
+기능/디자인 토큰/시드 스키마/패리티 표: `docs/reference/coolmessenger-gentoo/FEATURES.md`.
+(exe 바이너리 자체는 커밋하지 않는다 — `.gitignore`.)
 
 `client`의 `/api/*` 요청은 Vite dev 프록시를 통해 `server`로 전달됩니다.
 
