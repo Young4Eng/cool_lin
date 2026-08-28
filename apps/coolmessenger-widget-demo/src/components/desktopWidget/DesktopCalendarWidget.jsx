@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Calendar, CheckSquare, Sparkles, RefreshCw, Radio, ClipboardCheck } from 'lucide-react';
 import MiniCalendar from '../scheduleWidget/MiniCalendar';
+import CoolMessengerIngestBar from '../scheduleWidget/CoolMessengerIngestBar';
 import EventList from '../scheduleWidget/EventList';
 import TodoList from '../scheduleWidget/TodoList';
 import { PenguinIcon } from '../common/Icons';
@@ -199,6 +200,19 @@ export default function DesktopCalendarWidget() {
         <div className="flex-1 flex flex-col min-h-0 p-3 bg-slate-50/40 gap-2.5 overflow-hidden">
           {activeTab === 'calendar' && (
             <>
+              <CoolMessengerIngestBar
+                compact
+                onAddEvent={(event) => {
+                  setEvents((prev) => {
+                    const next = prev.some((e) => e.date === event.date && e.title === event.title)
+                      ? prev
+                      : [event, ...prev];
+                    saveStoredSchedule(next);
+                    return next;
+                  });
+                  setLastSyncedAt(new Date());
+                }}
+              />
               <MiniCalendar
                 events={calendarEvents}
                 selectedDate={selectedDate}

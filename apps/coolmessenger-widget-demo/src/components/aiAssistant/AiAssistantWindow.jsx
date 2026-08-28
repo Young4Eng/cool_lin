@@ -57,8 +57,11 @@ export default function AiAssistantWindow({
     setRealFetchResult(null);
     try {
       const result = mode === 'fresh' ? await fetchFreshFromCoolMessenger() : await fetchFromLatestDownload();
-      result.events.forEach((event) => onAddEvent && onAddEvent(event));
-      setRealFetchResult({ count: result.events.length, file: result.file });
+      result.events.forEach((event) => onAddEvent && onAddEvent(event, { silent: true }));
+      const aiNote = result.ai && result.ai.ok === false
+        ? (result.ai.error || '로컬 AI는 잠시 꺼져 있어 규칙 엔진 결과입니다.')
+        : null;
+      setRealFetchResult({ count: result.events.length, file: result.file, aiNote, source: result.source });
       if (result.events.length > 0) confetti({ particleCount: 60, spread: 50 });
     } catch (e) {
       setRealFetchResult({ count: 0, error: e.message || '가져오기에 실패했습니다.' });
@@ -244,8 +247,8 @@ export default function AiAssistantWindow({
                     )}
                   </div>
                   <p className="text-[11px] text-slate-200 mt-0.5">
-                    쿨메신저 창에서 .xls를 자동 다운로드 → 규칙 엔진 추출 → 로컬 Ollama 2차 분석까지 거친
-                    진짜 데이터를 위젯에 바로 반영합니다. (아래 "쪽지 일정 일괄 분석"은 이 앱 안의 시뮬레이션 데이터용입니다.)
+                    쿨메신저는 그대로 둡니다. 어제~오늘 쪽지를 받아 로컬 AI 일정을 캘린더에 넣습니다.
+                    (아래 일괄 분석은 이 앱 안 예시 데이터용입니다.)
                   </p>
                 </div>
               </div>
@@ -266,10 +269,10 @@ export default function AiAssistantWindow({
                   onClick={() => handleFetchReal('fresh')}
                   disabled={isFetchingReal || serverOnline === false}
                   className="flex-1 flex items-center justify-center gap-1.5 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-800 font-bold px-3 py-1.5 rounded-lg text-[11px] shadow-sm transition-colors"
-                  title="쿨메신저 창을 조작해 지금 새로 내려받음 (최대 90초)"
+                  title="쿨메신저는 그대로 두고 어제~오늘 쪽지를 받아 일정을 캘린더에 넣습니다 (최대 4분)"
                 >
                   <Download size={12} />
-                  지금 새로 다운로드
+                  어제~오늘 쪽지 가져오기
                 </button>
               </div>
 
@@ -283,7 +286,7 @@ export default function AiAssistantWindow({
                 <div className={`mt-2 p-2 rounded-lg text-[10.5px] leading-snug ${realFetchResult.error ? 'bg-rose-500/20 text-rose-100' : 'bg-emerald-500/20 text-emerald-100'}`}>
                   {realFetchResult.error
                     ? `가져오기 실패: ${realFetchResult.error}`
-                    : `실제 쪽지에서 일정 ${realFetchResult.count}건을 캘린더/검토함에 반영했습니다.${realFetchResult.file ? ` (${realFetchResult.file.split(/[\\/]/).pop()})` : ''}`}
+                    : `실제 쪽지에서 일정 ${realFetchResult.count}건을 캘린더/검토함에 반영했습니다.${realFetchResult.file ? ` (${realFetchResult.file.split(/[\\/]/).pop()})` : ''}${realFetchResult.aiNote ? ` · ${realFetchResult.aiNote}` : ''}`}
                 </div>
               )}
             </div>

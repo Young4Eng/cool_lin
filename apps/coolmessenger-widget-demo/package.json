@@ -8,7 +8,8 @@
     "dev": "vite",
     "prebuild": "node ../../packages/schedule-engine/scripts/ensure-built.mjs",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@cool-lin/schedule-engine": "file:../../packages/schedule-engine",
