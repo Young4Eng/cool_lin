@@ -18,6 +18,7 @@ import {
   TARGET_HOMEROOM,
   URGENT_TERMS,
 } from "./lexicon.js";
+import { dropParticle, nounsBefore } from "../text/phrase.js";
 
 /** 최초 실행에서 받는 역할 태그. 이름·학교명은 받지 않는다 (PRD 7.1A). */
 export interface UserRole {
@@ -96,42 +97,15 @@ const firstMatch = (text: string, table: LexiconEntry[]): LexiconEntry | null =>
   return best;
 };
 
-/**
- * 행사 이름 앞의 수식어로 받아들일 수 있는 말인가.
- *
- * 앞 단어를 무조건 붙이면 «월요일 부장 회의», «진행된 협의회», «일 개학식» 처럼
- * 날짜 조각과 용언이 제목에 섞인다. 명사형만 받는다.
- */
-function isUsableModifier(word: string): boolean {
-  if (word.length === 0 || word.length > 8) return false;
-  // «2학기», «1학년», «1차» 는 받는다.
-  if (/^\d{1,2}(?:학기|학년|차)$/.test(word)) return true;
-  // 숫자로 시작하거나 날짜·요일 조각이면 받지 않는다.
-  if (/^\d/.test(word)) return false;
-  if (/^(?:[월화수목금토일]요일|일|월|년|날|오늘|내일|모레|명일|금일|오전|오후|이번|다음|매주|매일|지난)$/.test(word)) {
-    return false;
-  }
-  // 용언 활용형(«진행된», «예정이던», «있는»)은 수식어로 쓰지 않는다.
-  if (/(?:된|던|는|은|한|할|인|고|서|며|나|자|여|어|아)$/.test(word)) return false;
-  return /^[가-힣]{2,8}$/.test(word);
-}
-
 /** 행사 이름 앞에 붙은 수식어까지 살려 «2학기 교무회의» 같은 덩어리를 만든다. */
 function eventPhrase(sentence: string, entry: LexiconEntry): string | null {
   const m = sentence.match(new RegExp(entry.term.source));
   if (m?.index === undefined) return null;
 
-  const core = m[0].trim();
-  // 행사 이름 바로 앞의 어절부터 거꾸로 최대 2개까지만 붙인다.
-  const before = sentence.slice(0, m.index).trimEnd().split(/\s+/);
-  const picked: string[] = [];
-  for (let i = before.length - 1; i >= 0 && picked.length < 2; i--) {
-    const word = before[i]!;
-    if (!isUsableModifier(word)) break;
-    picked.unshift(word);
-  }
-
-  const phrase = [...picked, core].join(" ").replace(/\s+/g, " ").trim();
+  // 제목과 같은 명사 판정을 쓴다 (src/text/phrase.ts).
+  // 조사를 떼지 않으면 «상황을 점검» 처럼 조사가 남은 제목이 된다.
+  const modifiers = nounsBefore(sentence, m.index, 2).map(dropParticle);
+  const phrase = [...modifiers, m[0].trim()].join(" ").replace(/\s+/g, " ").trim();
   return phrase.length >= 2 && phrase.length <= 20 ? phrase : null;
 }
 
