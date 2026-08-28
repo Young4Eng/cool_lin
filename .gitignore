@@ -40,3 +40,11 @@ pii-map.json
 
 # 나눠 주려고 저장소 맨 위에 복사해 둔 위젯 설치파일 (원본은 target/release/bundle/nsis)
 쿨린위젯_설치.exe
+
+# 설치본에 같이 넣는 embeddable CPython + 휠. 빌드가 채운다 — 바이너리는 커밋하지 않는다.
+# CoolMessenger.exe 와 실제 쪽지 xls 는 위에서 이미 막았다.
+apps/coolmessenger-widget-demo/src-tauri/resources/python-runtime/*
+!apps/coolmessenger-widget-demo/src-tauri/resources/python-runtime/README.md
+
+# 데모 키트 조립 폴더 (설치본·목업·씨앗 xls 를 모아 압축한다)
+demo-kit/out/

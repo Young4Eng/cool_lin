@@ -320,6 +320,25 @@ fn is_ymd(s: &str) -> bool {
     s.len() == 8 && s.bytes().all(|b| b.is_ascii_digit())
 }
 
+/// 설치본은 리소스에 넣은 embeddable CPython 을 쓴다. 교실 PC 에는 py / Node / pip 가 없다.
+/// 개발 중에 그 번들이 없으면 예전에 쓰던 py -3 으로 넘어간다.
+fn python_launch(dir: &std::path::Path) -> (PathBuf, Vec<String>, &'static str) {
+    let bundled = dir.join("python.exe");
+    if bundled.is_file() {
+        (
+            bundled,
+            vec!["ingest.py".into(), "ingest".into()],
+            "설치본 python.exe",
+        )
+    } else {
+        (
+            PathBuf::from("py"),
+            vec!["-3".into(), "ingest.py".into(), "ingest".into()],
+            "`py -3`",
+        )
+    }
+}
+
 /// 쿨메신저 창을 조작해 메시지를 새로 내려받는다 (기본은 어제~오늘).
 ///
 /// 파이썬을 여기서 직접 부른다. Node 서버를 거칠 이유가 없다 — 서버가 하던 일은
@@ -349,7 +368,8 @@ fn messenger_download_blocking(
     let dir = python_dir(app).ok_or("파이썬 자동화 폴더를 찾지 못했습니다.")?;
 
     // ingest.py 는 기간을 argv[2], argv[3] 으로 받는다 (YYYYMMDD). 둘 다 있을 때만 넘긴다.
-    let mut args: Vec<String> = vec!["-3".into(), "ingest.py".into(), "ingest".into()];
+    // 설치본: 같이 넣은 python.exe. 개발: 번들이 없으면 py -3.
+    let (program, mut args, py_label) = python_launch(&dir);
     if let (Some(s), Some(e)) = (start.as_deref(), end.as_deref()) {
         if is_ymd(s) && is_ymd(e) {
             args.push(s.to_string());
@@ -357,7 +377,7 @@ fn messenger_download_blocking(
         }
     }
 
-    let mut command = std::process::Command::new("py");
+    let mut command = std::process::Command::new(&program);
     command
         .args(&args)
         .current_dir(&dir)
@@ -370,7 +390,7 @@ fn messenger_download_blocking(
     let output = command
         .output()
         .map_err(|e| {
-            format!("파이썬을 실행하지 못했습니다: {e}. `py -3` 가 설치돼 있는지 확인해 주세요.")
+            format!("파이썬을 실행하지 못했습니다: {e}. {py_label} 를 확인해 주세요.")
         })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);

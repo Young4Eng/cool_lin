@@ -67,7 +67,8 @@
       }
     },
     "resources": {
-      "../../../server/python": "python"
+      "../../../server/python": "python",
+      "resources/python-runtime": "python"
     }
   }
 }
