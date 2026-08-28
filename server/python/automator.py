@@ -35,6 +35,9 @@ VK_CONTROL = 0x11
 VK_A = 0x41
 VK_HOME = 0x24
 VK_DELETE = 0x2E
+VK_LEFT = 0x25
+VK_RIGHT = 0x27
+VK_UP = 0x26
 HWND_TOPMOST = -1
 HWND_NOTOPMOST = -2
 SWP_NOSIZE = 0x0001
@@ -375,13 +378,124 @@ def wait_modal(hwnd: int, timeout: float, gone: bool = False) -> bool:
         time.sleep(0.2)
 
 
-def type_spin(digits: str) -> None:
-    tap(VK_HOME)
-    time.sleep(0.03)
-    for _ in range(len(digits) + 2):
-        tap(VK_DELETE)
-        time.sleep(0.01)
-    type_text(digits)
+# 「기 간」 라벨 가운데에서 두 날짜 칸까지의 거리 (배율 1.0 기준, 픽셀).
+#
+# 예전에는 「폴더변경」 단추를 기준으로 삼았다. 그런데 그 단추는 저장 폴더 경로가
+# 길어지면 오른쪽으로 밀린다 — 경로에는 시각이 들어가 실행할 때마다 길이가 달라진다.
+# 그래서 어느 날부터 클릭이 칸 바깥 테두리에 찍혔고, 날짜가 입력되지 않은 채로
+# 「성공」한 빈 파일이 나왔다. 라벨은 창 안쪽 왼쪽에 붙어 있어 경로와 무관하다.
+FIELD_DX_START = 70
+FIELD_DX_END = 330
+
+
+def load_scaled_templates(prefix: str) -> list[tuple[np.ndarray, float]]:
+    """파일 이름 끝의 배율(`period_1.15.png`)을 함께 돌려준다.
+
+    메신저의 화면 배율이 100% 가 아니면 라벨도 그만큼 커진다. 어느 템플릿이 맞았는지
+    알아야 «라벨에서 칸까지의 거리»도 같은 비율로 늘릴 수 있다.
+    """
+    out: list[tuple[np.ndarray, float]] = []
+    for path in sorted(ASSETS.glob(f"{prefix}_*.png")):
+        im = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        if im is None or not im.size:
+            continue
+        try:
+            scale = float(path.stem.split("_")[-1])
+        except ValueError:
+            scale = 1.0
+        out.append((im, scale))
+    return out
+
+
+def match_scaled(bgr: np.ndarray, tpls: list[tuple[np.ndarray, float]], y0_frac: float, y1_frac: float,
+                 x0_frac: float = 0.0, x1_frac: float = 1.0, thresh: float = 0.62):
+    """`match_in` 과 같되 «몇 배짜리 템플릿이 맞았는지»까지 돌려준다."""
+    h, w = bgr.shape[:2]
+    y0, y1 = int(h * y0_frac), int(h * y1_frac)
+    x0, x1 = int(w * x0_frac), int(w * x1_frac)
+    band = bgr[y0:y1, x0:x1]
+    best = None
+    for tpl, scale in tpls:
+        th, tw = tpl.shape[:2]
+        if th >= band.shape[0] or tw >= band.shape[1]:
+            continue
+        res = cv2.matchTemplate(band, tpl, cv2.TM_CCOEFF_NORMED)
+        _, maxv, _, maxl = cv2.minMaxLoc(res)
+        if best is None or float(maxv) > best[2]:
+            best = (x0 + maxl[0] + tw // 2, y0 + maxl[1] + th // 2, float(maxv), scale)
+    if best and best[2] >= thresh:
+        return best
+    return None
+
+
+def find_period_fields(hwnd: int):
+    """두 날짜 칸의 «화면» 좌표를 찾는다. 못 찾으면 None."""
+    l, t, r, b = _rect(hwnd)
+    img, sl, st = screenshot_region(l, t, r, b)
+    bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    m = match_scaled(bgr, load_scaled_templates("period"), 0.15, 0.9, 0.0, 0.9, thresh=0.55)
+    if not m:
+        return None
+    cx, cy, score, scale = m
+    start = (sl + cx + int(FIELD_DX_START * scale), st + cy)
+    end = (sl + cx + int(FIELD_DX_END * scale), st + cy)
+    return start, end, scale, score
+
+
+def _field_shot(x: int, y: int, scale: float) -> np.ndarray:
+    """날짜 칸 언저리를 잘라 온다. 「달라졌는가」를 보는 데만 쓴다."""
+    hw, hh = int(90 * scale), int(11 * scale)
+    img, _, _ = screenshot_region(int(x - hw), int(y - hh), int(x + hw), int(y + hh))
+    return np.array(img)
+
+
+def _changed(a: np.ndarray, b: np.ndarray) -> bool:
+    """글자가 바뀌었는가. 깜빡이는 캐럿(가는 세로선)에는 반응하지 않는다."""
+    if a.shape != b.shape:
+        return True
+    return int(np.count_nonzero(np.any(a != b, axis=-1))) > 150
+
+
+def type_into_date_field(x: int, y: int, digits: str, scale: float,
+                         log: Callable[[str], None], label: str) -> None:
+    """날짜 칸에 년·월·일을 **칸 단위로** 넣는다.
+
+    이 칸은 년-월-일 세 칸이 붙어 있는 날짜 입력이다. 화면에는 `2026-07-01` 로 보인다.
+    하이픈 없이 8자리를 이어서 치면 년 칸이 여섯 자리까지 삼켜 `202608-02-05` 가 된다 —
+    실제로 이렇게 망가진 채 «성공»한 빈 파일이 나왔다. 보이는 표기대로 넣어야 한다.
+
+    누르기 전에 위 화살표로 한 번 값을 올려 본다. 화면이 그대로면 캐럿이 칸 밖에 있다는
+    뜻이므로 거기서 멈춘다. 기간이 조용히 틀어지는 것이 가장 나쁜 결과다(기술계획서 8.4).
+    """
+    before = _field_shot(x, y, scale)
+    click(int(x), int(y))
+    time.sleep(0.18)
+    for _ in range(3):
+        tap(VK_LEFT)  # 어느 칸을 눌렀든 첫 칸(년)으로 간다
+        time.sleep(0.02)
+    tap(VK_UP)
+    time.sleep(0.18)
+    probed = _field_shot(x, y, scale)
+    if not _changed(before, probed):
+        raise RuntimeError(
+            f"{label} 날짜 칸을 누르지 못했습니다. 쿨메신저 창이 다른 창에 가려져 있지 "
+            "않은지 확인한 뒤 다시 눌러 주세요."
+        )
+
+    type_text(digits[0:4])
+    time.sleep(0.06)
+    tap(VK_RIGHT)
+    type_text(digits[4:6])
+    time.sleep(0.06)
+    tap(VK_RIGHT)
+    type_text(digits[6:8])
+    time.sleep(0.2)
+
+    # 값까지 확인하고 싶지만 칸의 글자를 읽을 수단이 없다. 여기서는 «달라졌다»까지만
+    # 보고, 기간이 맞는지는 내려받은 표의 날짜로 ingest.py 가 다시 본다.
+    if not _changed(probed, _field_shot(x, y, scale)):
+        log(f"{label} 날짜를 넣었지만 화면이 그대로다 — 이미 같은 값이었을 수 있다")
+    log(f"{label} 날짜 {digits[0:4]}-{digits[4:6]}-{digits[6:8]}")
 
 
 def type_ymd(d: date) -> None:
@@ -435,32 +549,22 @@ def fill_dates_and_download(
     end_d = end or today
     start_s = f"{start_d.year:04d}{start_d.month:02d}{start_d.day:02d}"
     end_s = f"{end_d.year:04d}{end_d.month:02d}{end_d.day:02d}"
-    l, top, r, btm = _rect(hwnd)
-    tpls = load_templates("folderchg")
-    img, sl, st = screenshot_region(l, top, r, btm)
-    bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-    fc = match_in(bgr, tpls, 0.15, 0.9, 0.1, 0.95, thresh=0.52) if tpls else None
-    if not fc:
+
+    found = find_period_fields(hwnd)
+    if not found:
         # 예전에는 여기서 창 비율로 좌표를 찍었다. 그런데 다운로드 창이 실제로는 안 떠
         # 있을 때 엉뚱한 곳을 눌러 놓고 그 위에 날짜를 타이핑해 버렸다. 기간이 조용히
         # 망가진 채로 «성공»한 파일이 나오는 것이 가장 나쁜 결과다 (기술계획서 8.4).
         raise RuntimeError(
-            "다운로드 창의 «폴더변경»을 찾지 못해 시작 날짜 칸 위치를 알 수 없습니다. "
+            "다운로드 창의 «기 간» 칸을 찾지 못했습니다. "
             "쿨메신저가 다른 창에 가려져 있지 않은지 확인해 주세요."
         )
-    # 폴더변경 왼쪽 위 = 시작 날짜 칸 (달력 아이콘이 아니라 숫자 쪽)
-    sx, sy = sl + fc[0] - 280, st + fc[1] - 58
-    log(f"시작 날짜 클릭 {sx},{sy}")
-    click(int(sx), int(sy))
-    time.sleep(0.18)
-    type_spin(start_s)
-    log(f"시작 날짜 {start_s}")
-    time.sleep(0.12)
-    tap(VK_TAB)
-    time.sleep(0.08)
-    type_spin(end_s)
-    log(f"끝 날짜 {end_s}")
-    time.sleep(0.2)
+    (sx, sy), (ex, ey), scale, score = found
+    log(f"기간 라벨 {score:.2f} (배율 {scale})")
+
+    # 시작 칸에서 TAB 을 누르면 끝 칸이 아니라 옆의 달력 단추로 간다. 각각 누른다.
+    type_into_date_field(sx, sy, start_s, scale, log, "시작")
+    type_into_date_field(ex, ey, end_s, scale, log, "끝")
     click_download_label(hwnd, log)
 
 
@@ -489,6 +593,11 @@ def run(
 ) -> dict:
     log = progress or (lambda _s: None)
     started = time.time()
+    # 기본 기간을 여기서 정한다. 실제로 무슨 기간을 넣었는지 돌려줘야 ingest.py 가
+    # 내려받은 표의 날짜와 맞춰 볼 수 있다.
+    today = date.today()
+    start_d = start or (today - timedelta(days=1))
+    end_d = end or today
 
     # 직전 실행이 남긴 저장 확인 창을 먼저 치운다. 남아 있으면 이 창이 앞에 서서
     # 아래 클릭이 전부 엉뚱한 곳으로 간다 — 연속 실행이 실패하던 원인이다.
@@ -525,7 +634,7 @@ def run(
                 "확인한 뒤 다시 눌러 주세요."
             )
 
-    fill_dates_and_download(hwnd, log, start, end)
+    fill_dates_and_download(hwnd, log, start_d, end_d)
     log("저장 대기")
     dismiss_saved_box()
     deadline = time.time() + 25
@@ -543,4 +652,9 @@ def run(
     if wait_modal(hwnd, 2.0, gone=True):
         log("다운로드 창이 아직 닫히지 않음")
 
-    return {"file": str(path), "started": started}
+    return {
+        "file": str(path),
+        "started": started,
+        "start": start_d.isoformat(),
+        "end": end_d.isoformat(),
+    }
