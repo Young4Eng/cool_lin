@@ -58,6 +58,14 @@ export async function ensureAutostartOnFirstRun() {
   return setAutostart(true, { byUser: false });
 }
 
+/** 캘린더를 확장(큰 화면) 모드로 켜거나 끈다 — 창 자체도 함께 커지고 화면 중앙으로 옮겨진다. */
+export async function setWidgetExpanded(expanded) {
+  if (!inDesktopShell()) return;
+  try {
+    await invoke('set_widget_expanded', { expanded });
+  } catch {}
+}
+
 /**
  * 쿨메신저 창을 조작하는 동안 위젯을 잠깐 숨긴다.
  *

@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarDays, CheckSquare, ClipboardCheck, Download, Power } from 'lucide-react';
+import { CalendarDays, CheckSquare, ChevronLeft, ChevronRight, ClipboardCheck, Download, Power } from 'lucide-react';
 import MiniCalendar from '../scheduleWidget/MiniCalendar';
+import BigCalendar from '../scheduleWidget/BigCalendar';
 import CoolMessengerIngestBar from '../scheduleWidget/CoolMessengerIngestBar';
+import EventEditorModal from '../scheduleWidget/EventEditorModal';
 import EventList from '../scheduleWidget/EventList';
 import TodoList from '../scheduleWidget/TodoList';
 import SourceMessageModal from './SourceMessageModal';
@@ -11,7 +13,7 @@ import {
 } from '../../services/storageService';
 import { subscribeAiEventAdded } from '../../utils/widgetSync';
 import { ingestOnce } from '../../services/widgetIngest';
-import { ensureAutostartOnFirstRun, inDesktopShell, setAutostart } from '../../services/desktopShell';
+import { ensureAutostartOnFirstRun, inDesktopShell, setAutostart, setWidgetExpanded } from '../../services/desktopShell';
 
 // 바탕화면 일정 위젯 — 설치본에서는 이 창 하나만 뜬다.
 //
@@ -34,6 +36,8 @@ export default function DesktopCalendarWidget() {
   const [sourceEvent, setSourceEvent] = useState(null);
   const [autostart, setAutostartState] = useState(false);
   const [showIngest, setShowIngest] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [addDate, setAddDate] = useState(null);
 
   const [ingest, setIngest] = useState({ state: 'idle', message: '' });
   const runningRef = useRef(false);
@@ -121,6 +125,25 @@ export default function DesktopCalendarWidget() {
     saveStoredTodos(next);
   };
 
+  // 가져오기 막대와 확장 달력의 「+」가 함께 쓴다 — 같은 제목·날짜면 두 번 넣지 않는다.
+  const addEvent = useCallback((event) => {
+    setEvents((prev) => {
+      const exists = prev.some((e) => e.date === event.date && e.title === event.title);
+      const next = exists ? prev : [event, ...prev];
+      if (!exists) saveStoredSchedule(next);
+      return next;
+    });
+  }, []);
+
+  // 캘린더를 확장(큰 화면)하면 창 자체도 함께 커진다 — 접으면 원래 자리로 돌아간다.
+  const toggleExpanded = useCallback(() => {
+    setExpanded((prev) => {
+      const next = !prev;
+      setWidgetExpanded(next);
+      return next;
+    });
+  }, []);
+
   const handleToggleAutostart = async () => {
     const next = !autostart;
     setAutostartState(await setAutostart(next));
@@ -138,8 +161,54 @@ export default function DesktopCalendarWidget() {
     { id: 'todo', label: '할 일', icon: CheckSquare, count: openTodos },
   ];
 
+  // 왼쪽 가장자리의 작은 손잡이 — 눌러서 캘린더를 크게 펼치거나 다시 접는다.
+  // 접힌 상태·펼친 상태 어디서나 같은 자리에 있다.
+  const expandHandle = (
+    <button
+      type="button"
+      onClick={toggleExpanded}
+      title={expanded ? '캘린더 작게 보기' : '캘린더 크게 보기'}
+      aria-label={expanded ? '캘린더 작게 보기' : '캘린더 크게 보기'}
+      className="absolute left-0 top-1/2 z-30 flex h-9 w-3 -translate-y-1/2 items-center justify-center rounded-r-md border border-l-0 border-[#E5E4E0] bg-white text-[#A8A29B] shadow-sm transition-colors hover:bg-[#F8F8F5] hover:text-[#3A322D]"
+    >
+      {expanded ? <ChevronLeft size={10} /> : <ChevronRight size={10} />}
+    </button>
+  );
+
+  // 「+」로 이 날짜에 새 일정을 추가할 때 쓰는 모달. addDate 가 바뀔 때마다
+  // key 로 다시 만들어야 입력칸이 이전 날짜에 머물지 않는다.
+  const quickAddModal = (
+    <EventEditorModal
+      key={addDate}
+      isOpen={addDate !== null}
+      onClose={() => setAddDate(null)}
+      onSave={addEvent}
+      initialDate={addDate ?? undefined}
+    />
+  );
+
+  if (expanded) {
+    return (
+      <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-white font-sans text-slate-900">
+        {expandHandle}
+        <BigCalendar
+          events={calendarEvents}
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          onOpenSource={setSourceEvent}
+          onAddEvent={setAddDate}
+        />
+        {sourceEvent && (
+          <SourceMessageModal event={sourceEvent} onClose={() => setSourceEvent(null)} />
+        )}
+        {quickAddModal}
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-white font-sans text-slate-900">
+      {expandHandle}
       <header className="shrink-0 select-none border-b border-slate-200 px-4 pt-3.5 pb-3">
         <div className="flex items-baseline justify-between gap-2">
           <h1 className="text-[17px] font-semibold tracking-tight">{todayLabel}</h1>
@@ -215,17 +284,7 @@ export default function DesktopCalendarWidget() {
                 평소에는 접어 둔다 — 흘깃 보는 위젯에서 맨 위 자리는 «오늘 무엇이 있나»
                 가 가져가야 한다. 「가져오기」를 눌러야 펼쳐진다. */}
             {showIngest && (
-            <CoolMessengerIngestBar
-              compact
-              onAddEvent={(event) => {
-                setEvents((prev) => {
-                  const exists = prev.some((e) => e.date === event.date && e.title === event.title);
-                  const next = exists ? prev : [event, ...prev];
-                  if (!exists) saveStoredSchedule(next);
-                  return next;
-                });
-              }}
-            />
+            <CoolMessengerIngestBar compact onAddEvent={addEvent} />
             )}
             <MiniCalendar
               events={calendarEvents}
@@ -289,6 +348,7 @@ export default function DesktopCalendarWidget() {
       {sourceEvent && (
         <SourceMessageModal event={sourceEvent} onClose={() => setSourceEvent(null)} />
       )}
+      {quickAddModal}
     </div>
   );
 }

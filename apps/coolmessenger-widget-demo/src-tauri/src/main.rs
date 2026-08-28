@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use tauri::{AppHandle, Manager, PhysicalPosition};
+use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 const WIDGET: &str = "widget";
@@ -104,6 +104,48 @@ fn refresh_autostart_path(app: &AppHandle) {
     let mgr = app.autolaunch();
     let _ = mgr.disable();
     let _ = mgr.enable();
+}
+
+/// 위젯의 기본(작은) 크기. tauri.conf.json 의 windows[0].width/height 와 같아야 한다.
+const NORMAL_SIZE: (f64, f64) = (380.0, 660.0);
+/// 캘린더를 크게 펼칠 때 크기. 모니터보다 크면 아래에서 화면 크기에 맞춰 줄어든다.
+const EXPANDED_SIZE: (f64, f64) = (900.0, 680.0);
+
+/// 캘린더를 접었다 펼쳤다 할 때 창 자체도 함께 커지고 작아진다.
+///
+/// 펼친 상태는 화면 중앙에 둔다 — 위젯의 원래 자리(오른쪽 위 구석)에 그대로 두면 커진
+/// 창이 화면 밖으로 밀려난다. 접으면 `place_widget` 과 같은 방식으로 다시 오른쪽 위로
+/// 돌아간다.
+#[tauri::command]
+fn set_widget_expanded(app: AppHandle, expanded: bool) {
+    let Some(win) = app.get_webview_window(WIDGET) else {
+        return;
+    };
+    let Ok(Some(monitor)) = win.primary_monitor() else {
+        return;
+    };
+
+    let area = monitor.size();
+    let origin = monitor.position();
+    let scale = monitor.scale_factor();
+
+    let (raw_w, raw_h) = if expanded { EXPANDED_SIZE } else { NORMAL_SIZE };
+    let max_w = (area.width as f64 / scale) - 40.0;
+    let max_h = (area.height as f64 / scale) - 80.0;
+    let w = raw_w.min(max_w).max(320.0);
+    let h = raw_h.min(max_h).max(460.0);
+    let _ = win.set_size(LogicalSize::new(w, h));
+
+    if expanded {
+        let Ok(size) = win.outer_size() else {
+            return;
+        };
+        let x = origin.x + (area.width as i32 - size.width as i32) / 2;
+        let y = origin.y + (area.height as i32 - size.height as i32) / 2;
+        let _ = win.set_position(PhysicalPosition::new(x.max(origin.x), y.max(origin.y)));
+    } else {
+        place_widget(&app);
+    }
 }
 
 /// 쿨메신저에서 가져오는 동안 위젯을 잠깐 비켜 준다.
@@ -285,6 +327,7 @@ fn main() {
             autostart_status,
             autostart_set,
             set_widget_visible,
+            set_widget_expanded,
             read_latest_export,
             run_messenger_download
         ])
