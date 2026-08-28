@@ -1,27 +1,22 @@
-// Client for the REAL data pipeline, as opposed to this app's built-in
-// simulated CoolMessenger messages:
-//
-//   실제 쿨메신저 창 (server/python/automator.py, pyautogui)
-//     → .xls 자동 다운로드
-//     → packages/schedule-engine (server/src/index.ts: runPipeline)
-//     → Candidate[] 반환 + (fire-and-forget) 로컬 Ollama 2차 분석 (#5)
-//
-// server/ is the only thing that can drive the real CoolMessenger window
-// and read the filesystem, so the widget talks to it over HTTP rather than
-// re-implementing any of that in the browser. See ENGINE.md and
-// server/README-ish comments in index.ts for the endpoint contracts.
-
 import { candidateToEvent } from './scheduleEngineAdapter';
 import { getAiSettings } from './localAiService';
+import { eventsFromIngestPayload } from './aiItemMapper';
+import { inDesktopShell, readLatestExport, runMessengerDownload, withWidgetHidden } from './desktopShell';
+import { eventsFromExport } from './localExport';
+
+const INGEST_TIMEOUT_MS = 240000;
+const LATEST_TIMEOUT_MS = 160000;
 
 function serverBase() {
   const settings = getAiSettings();
   return (settings.serverEndpoint || 'http://localhost:4000').replace(/\/$/, '');
 }
 
-async function postJson(path, { timeoutMs = 95000 } = {}) {
+async function postJson(path, { timeoutMs = INGEST_TIMEOUT_MS, body } = {}) {
   const res = await fetch(`${serverBase()}${path}`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? '{}' : JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
   });
   const data = await res.json().catch(() => ({}));
@@ -31,19 +26,46 @@ async function postJson(path, { timeoutMs = 95000 } = {}) {
   return data;
 }
 
-/**
- * 실제 쿨메신저에서 지금 바로 새로 다운로드해서 일정 후보를 뽑는다.
- * 쿨메신저 창을 실제로 조작하므로(90초 타임아웃) 시간이 좀 걸릴 수 있다.
- */
-export async function fetchFreshFromCoolMessenger() {
-  const data = await postJson('/api/ingest');
+export async function fetchFreshFromCoolMessenger(period) {
+  // 설치본에는 Node 서버가 없다. 셸이 파이썬을 직접 부르고, 해석은 위젯이 한다.
+  if (inDesktopShell()) {
+    // 쿨메신저 창을 조작하는 동안 위젯이 비켜 준다. 여기 두면 이 함수를 부르는
+    // 모든 화면(팀원의 가져오기 막대 포함)이 같은 보호를 받는다.
+    await withWidgetHidden(() => runMessengerDownload(period));
+    return fromLocalFile('내려받은 파일을 찾지 못했습니다.');
+  }
+  const body =
+    period?.start && period?.end ? { startDate: period.start, endDate: period.end } : {};
+  const data = await postJson('/api/ingest', { timeoutMs: INGEST_TIMEOUT_MS, body });
   return toResult(data);
 }
 
-/** 이미 내려받아 열려 있는 최신 파일에서 다시 뽑는다 (다운로드 재시도 없음, 빠름). */
 export async function fetchFromLatestDownload() {
-  const data = await postJson('/api/open-latest', { timeoutMs: 20000 });
+  if (inDesktopShell()) {
+    return fromLocalFile('아직 내려받은 쪽지가 없습니다. 「가져오기」를 눌러 주세요.');
+  }
+  const data = await postJson('/api/open-latest', { timeoutMs: LATEST_TIMEOUT_MS });
   return toResult(data);
+}
+
+/**
+ * 바탕화면의 최신 내보내기 파일에서 바로 뽑는다 (서버 없음).
+ *
+ * 로컬 AI(items) 는 서버가 붙여 주던 것이라 이 경로에는 없다. 규칙 엔진 결과만 나오며,
+ * 그건 `source: 'candidates'` 로 알린다 — 화면이 「로컬 AI 는 꺼져 있습니다」라고
+ * 말할 수 있어야 하기 때문이다.
+ */
+async function fromLocalFile(emptyMessage) {
+  const file = await readLatestExport();
+  if (!file) throw new Error(emptyMessage);
+  return {
+    file: file.path,
+    stats: null,
+    events: eventsFromExport(file.text),
+    source: 'candidates',
+    items: [],
+    ai: null,
+  };
 }
 
 // 후보 하나가 «어느 쪽지에서 나왔는지» 되찾는다.
@@ -51,9 +73,13 @@ export async function fetchFromLatestDownload() {
 // 엔진은 일부러 쪽지 원문을 후보에 담지 않는다(개인정보). 대신 `messageSentAt` 과
 // `counterpart` 를 **원문 그대로** 넘겨 주므로, 같은 응답에 들어 있는 시트 행과 맞추면
 // 원문을 찾을 수 있다. 한 사람이 같은 «초»에 두 통을 보내지는 않는다.
+//
+// 로컬 AI 가 준 항목(items)에는 그 두 값이 없고 `source_title`(원쪽지 제목)만 있어서
+// 제목으로도 찾을 수 있게 색인을 둘로 만든다.
 function buildSourceIndex(sheets) {
-  const index = new Map();
-  if (!sheets || typeof sheets !== 'object') return index;
+  const byMessage = new Map();
+  const byTitle = new Map();
+  if (!sheets || typeof sheets !== 'object') return { byMessage, byTitle };
 
   for (const [sheetName, rows] of Object.entries(sheets)) {
     if (!Array.isArray(rows)) continue;
@@ -61,7 +87,7 @@ function buildSourceIndex(sheets) {
       const sentAt = row['날짜/시간'];
       const who = row['보낸사람'] ?? row['받은사람'];
       if (!sentAt || !who) continue;
-      index.set(`${sentAt}|${who}`, {
+      const source = {
         sheet: sheetName,
         kind: row['구분'] ?? '',
         from: who,
@@ -69,34 +95,46 @@ function buildSourceIndex(sheets) {
         sentAt,
         body: row['내용'] ?? '',
         attachment: row['첨부파일'] ?? '',
-      });
+      };
+      byMessage.set(`${sentAt}|${who}`, source);
+      if (source.subject && !byTitle.has(source.subject)) byTitle.set(source.subject, source);
     }
   }
-  return index;
+  return { byMessage, byTitle };
 }
 
-function toResult(data) {
-  const candidates = Array.isArray(data.candidates) ? data.candidates : [];
-  const sources = buildSourceIndex(data.sheets);
+export function toResult(data) {
+  const { byMessage, byTitle } = buildSourceIndex(data.sheets);
 
-  const events = candidates
-    .map((candidate) => {
-      const event = candidateToEvent(candidate);
-      if (!event) return null;
-      // 목록에서 더블클릭하면 이 원문을 그대로 띄운다.
-      const source = sources.get(`${candidate.messageSentAt}|${candidate.counterpart}`);
-      return source ? { ...event, source } : event;
-    })
-    .filter(Boolean);
+  // 규칙 엔진 후보 → 일정. 옮기면서 원문을 함께 달아 둔다.
+  // 목록에서 더블클릭하면 이 원문을 그대로 띄운다.
+  const mapCandidate = (candidate) => {
+    const event = candidateToEvent(candidate);
+    if (!event) return null;
+    const source = byMessage.get(`${candidate.messageSentAt}|${candidate.counterpart}`);
+    return source ? { ...event, source } : event;
+  };
+
+  const mapped = eventsFromIngestPayload(data, mapCandidate);
+
+  // 로컬 AI 항목은 원쪽지 «제목»으로 원문을 찾는다.
+  const events = mapped.events.map((event) =>
+    event.source || !event.sourceTitle
+      ? event
+      : { ...event, source: byTitle.get(event.sourceTitle) ?? undefined },
+  );
 
   return {
     file: typeof data.file === 'string' ? data.file : null,
     stats: data.extraction?.stats ?? null,
     events,
+    // 「무엇으로 뽑았나」 — 'items'(로컬 AI) 또는 'candidates'(규칙 엔진)
+    source: mapped.source,
+    items: Array.isArray(data.items) ? data.items : [],
+    ai: data.ai ?? null,
   };
 }
 
-/** 서버(및 쿨메신저 자동화 브리지)가 지금 떠 있는지 가볍게 확인한다. */
 export async function isServerReachable() {
   try {
     const res = await fetch(`${serverBase()}/api/health`, { signal: AbortSignal.timeout(3000) });

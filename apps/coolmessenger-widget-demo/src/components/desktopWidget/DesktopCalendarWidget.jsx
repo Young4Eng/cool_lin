@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarDays, CheckSquare, ClipboardCheck, Download, Loader2, Power } from 'lucide-react';
+import { CalendarDays, CheckSquare, ClipboardCheck, Download, Power } from 'lucide-react';
 import MiniCalendar from '../scheduleWidget/MiniCalendar';
+import CoolMessengerIngestBar from '../scheduleWidget/CoolMessengerIngestBar';
 import EventList from '../scheduleWidget/EventList';
 import TodoList from '../scheduleWidget/TodoList';
 import SourceMessageModal from './SourceMessageModal';
@@ -10,7 +11,7 @@ import {
 } from '../../services/storageService';
 import { subscribeAiEventAdded } from '../../utils/widgetSync';
 import { ingestOnce } from '../../services/widgetIngest';
-import { ensureAutostartOnFirstRun, inDesktopShell, setAutostart, withWidgetHidden } from '../../services/desktopShell';
+import { ensureAutostartOnFirstRun, inDesktopShell, setAutostart } from '../../services/desktopShell';
 
 // 바탕화면 일정 위젯 — 설치본에서는 이 창 하나만 뜬다.
 //
@@ -32,6 +33,7 @@ export default function DesktopCalendarWidget() {
   const [now, setNow] = useState(new Date());
   const [sourceEvent, setSourceEvent] = useState(null);
   const [autostart, setAutostartState] = useState(false);
+  const [showIngest, setShowIngest] = useState(false);
 
   const [ingest, setIngest] = useState({ state: 'idle', message: '' });
   const runningRef = useRef(false);
@@ -85,10 +87,9 @@ export default function DesktopCalendarWidget() {
       const current = loadStoredSchedule();
       // 쿨메신저 창을 실제로 조작하는 동안에는 위젯이 비켜 준다.
       // 「항상 위」인 채로 두면 자동화가 메신저를 앞으로 꺼내지 못한다.
-      const result =
-        mode === 'fresh'
-          ? await withWidgetHidden(() => ingestOnce(current, mode))
-          : await ingestOnce(current, mode);
+      // 위젯 숨김은 realIngestClient 안으로 옮겼다 — 여기만 감싸면 팀원의 가져오기
+      // 막대가 그 보호를 못 받는다.
+      const result = await ingestOnce(current, mode);
       if (result.added.length > 0 || result.forReview.length > 0) {
         persistEvents(result.next);
       }
@@ -148,14 +149,16 @@ export default function DesktopCalendarWidget() {
         <div className="mt-2 flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => runIngest('fresh')}
-            disabled={ingest.state === 'running'}
-            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+            onClick={() => setShowIngest((v) => !v)}
+            aria-expanded={showIngest}
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-semibold ${
+              showIngest
+                ? 'bg-[#EFEEEA] text-[#1D1715]'
+                : 'bg-[#1D1715] text-white hover:bg-[#3A322D]'
+            }`}
           >
-            {ingest.state === 'running'
-              ? <Loader2 size={12} className="animate-spin" />
-              : <Download size={12} />}
-            쿨메신저에서 가져오기
+            <Download size={12} />
+            가져오기
           </button>
 
           {inDesktopShell() && (
@@ -208,6 +211,22 @@ export default function DesktopCalendarWidget() {
       <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-3 py-3">
         {activeTab === 'calendar' && (
           <>
+            {/* 기간 지정 가져오기 · 시각 예약. 서버가 없어도 셸 경로로 돈다.
+                평소에는 접어 둔다 — 흘깃 보는 위젯에서 맨 위 자리는 «오늘 무엇이 있나»
+                가 가져가야 한다. 「가져오기」를 눌러야 펼쳐진다. */}
+            {showIngest && (
+            <CoolMessengerIngestBar
+              compact
+              onAddEvent={(event) => {
+                setEvents((prev) => {
+                  const exists = prev.some((e) => e.date === event.date && e.title === event.title);
+                  const next = exists ? prev : [event, ...prev];
+                  if (!exists) saveStoredSchedule(next);
+                  return next;
+                });
+              }}
+            />
+            )}
             <MiniCalendar
               events={calendarEvents}
               selectedDate={selectedDate}
@@ -215,14 +234,14 @@ export default function DesktopCalendarWidget() {
             />
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex items-baseline justify-between px-0.5 pb-1.5">
-                <h2 className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                <h2 className="text-[11px] font-medium uppercase tracking-wider text-[#A8A29B]">
                   {selectedDate ? selectedDate : '다가오는 일정'}
                 </h2>
                 {selectedDate && (
                   <button
                     type="button"
                     onClick={() => setSelectedDate(null)}
-                    className="text-[10.5px] text-slate-400 hover:text-slate-700"
+                    className="text-[10.5px] text-[#A8A29B] hover:text-[#3A322D]"
                   >
                     전체 보기
                   </button>

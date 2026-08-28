@@ -389,6 +389,18 @@ def type_ymd(d: date) -> None:
     type_text(f"{d.year:04d}{d.month:02d}{d.day:02d}")
 
 
+def parse_ymd_arg(s: str | None) -> Optional[date]:
+    if not s:
+        return None
+    raw = str(s).strip()
+    if len(raw) != 8 or not raw.isdigit():
+        raise ValueError("날짜는 8자리 숫자(YYYYMMDD)로 입력해 주세요.")
+    try:
+        return date(int(raw[0:4]), int(raw[4:6]), int(raw[6:8]))
+    except ValueError:
+        raise ValueError("존재하지 않는 날짜입니다. YYYYMMDD 형식으로 다시 입력해 주세요.") from None
+
+
 def click_download_label(hwnd: int, log: Callable[[str], None]) -> None:
     force_foreground(hwnd)
     l, t, r, b = _rect(hwnd)
@@ -410,11 +422,19 @@ def click_download_label(hwnd: int, log: Callable[[str], None]) -> None:
     time.sleep(0.5)
 
 
-def fill_dates_and_download(hwnd: int, log: Callable[[str], None]) -> None:
+def fill_dates_and_download(
+    hwnd: int,
+    log: Callable[[str], None],
+    start: Optional[date] = None,
+    end: Optional[date] = None,
+) -> None:
     force_foreground(hwnd)
     today = date.today()
     yest = today - timedelta(days=1)
-    yest_s = f"{yest.year:04d}{yest.month:02d}{yest.day:02d}"
+    start_d = start or yest
+    end_d = end or today
+    start_s = f"{start_d.year:04d}{start_d.month:02d}{start_d.day:02d}"
+    end_s = f"{end_d.year:04d}{end_d.month:02d}{end_d.day:02d}"
     l, top, r, btm = _rect(hwnd)
     tpls = load_templates("folderchg")
     img, sl, st = screenshot_region(l, top, r, btm)
@@ -433,10 +453,13 @@ def fill_dates_and_download(hwnd: int, log: Callable[[str], None]) -> None:
     log(f"시작 날짜 클릭 {sx},{sy}")
     click(int(sx), int(sy))
     time.sleep(0.18)
-    tap(VK_HOME)
-    time.sleep(0.05)
-    type_ymd(yest)
-    log(f"시작 날짜 {yest_s} (끝은 오늘 유지)")
+    type_spin(start_s)
+    log(f"시작 날짜 {start_s}")
+    time.sleep(0.12)
+    tap(VK_TAB)
+    time.sleep(0.08)
+    type_spin(end_s)
+    log(f"끝 날짜 {end_s}")
     time.sleep(0.2)
     click_download_label(hwnd, log)
 
@@ -459,7 +482,11 @@ def dismiss_saved_box(timeout: float = 3.0) -> bool:
     return False
 
 
-def run(progress: Callable[[str], None] | None = None) -> dict:
+def run(
+    progress: Callable[[str], None] | None = None,
+    start: Optional[date] = None,
+    end: Optional[date] = None,
+) -> dict:
     log = progress or (lambda _s: None)
     started = time.time()
 
@@ -498,7 +525,7 @@ def run(progress: Callable[[str], None] | None = None) -> dict:
                 "확인한 뒤 다시 눌러 주세요."
             )
 
-    fill_dates_and_download(hwnd, log)
+    fill_dates_and_download(hwnd, log, start, end)
     log("저장 대기")
     dismiss_saved_box()
     deadline = time.time() + 25

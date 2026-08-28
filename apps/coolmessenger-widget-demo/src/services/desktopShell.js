@@ -96,8 +96,11 @@ export async function readLatestExport() {
  * 쿨메신저 창을 조작해 새로 내려받는다.
  * 파이썬을 셸이 직접 부른다 — Node 서버를 거치지 않는다.
  */
-export async function runMessengerDownload() {
-  const line = await invoke('run_messenger_download');
+export async function runMessengerDownload(period) {
+  const line = await invoke('run_messenger_download', {
+    start: period?.start ?? null,
+    end: period?.end ?? null,
+  });
   let data;
   try {
     data = JSON.parse(line);

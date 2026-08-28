@@ -206,16 +206,34 @@ fn python_dir(app: &AppHandle) -> Option<PathBuf> {
     None
 }
 
-/// 쿨메신저 창을 조작해 어제~오늘 메시지를 새로 내려받는다.
+/// 8자리 숫자인가. 바깥에서 온 값을 그대로 명령줄에 붙이지 않는다.
+fn is_ymd(s: &str) -> bool {
+    s.len() == 8 && s.bytes().all(|b| b.is_ascii_digit())
+}
+
+/// 쿨메신저 창을 조작해 메시지를 새로 내려받는다 (기본은 어제~오늘).
 ///
 /// 파이썬을 여기서 직접 부른다. Node 서버를 거칠 이유가 없다 — 서버가 하던 일은
 /// 이 명령을 대신 실행해 주는 것뿐이었다. 마지막 stdout 줄(JSON)을 그대로 돌려준다.
 #[tauri::command]
-fn run_messenger_download(app: AppHandle) -> Result<String, String> {
+fn run_messenger_download(
+    app: AppHandle,
+    start: Option<String>,
+    end: Option<String>,
+) -> Result<String, String> {
     let dir = python_dir(&app).ok_or("파이썬 자동화 폴더를 찾지 못했습니다.")?;
 
+    // ingest.py 는 기간을 argv[2], argv[3] 으로 받는다 (YYYYMMDD). 둘 다 있을 때만 넘긴다.
+    let mut args: Vec<String> = vec!["-3".into(), "ingest.py".into(), "ingest".into()];
+    if let (Some(s), Some(e)) = (start.as_deref(), end.as_deref()) {
+        if is_ymd(s) && is_ymd(e) {
+            args.push(s.to_string());
+            args.push(e.to_string());
+        }
+    }
+
     let output = std::process::Command::new("py")
-        .args(["-3", "ingest.py", "ingest"])
+        .args(&args)
         .current_dir(&dir)
         .env("PYTHONIOENCODING", "utf-8")
         .env("PYTHONUTF8", "1")

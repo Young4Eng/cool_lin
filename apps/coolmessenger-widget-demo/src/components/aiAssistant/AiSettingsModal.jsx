@@ -213,7 +213,7 @@ export default function AiSettingsModal({ isOpen, onClose }) {
                   type="text"
                   value={settings.model}
                   onChange={(e) => setSettings(prev => ({ ...prev, model: e.target.value }))}
-                  placeholder="llama3:latest"
+                  placeholder="qwen2.5:3b"
                   className="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none font-mono text-[11px]"
                 />
               </div>
