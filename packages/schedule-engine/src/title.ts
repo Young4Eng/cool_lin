@@ -46,7 +46,10 @@ const CLOCK_FRAGMENT = /\d{1,2}\s*:\s*\d{2}|~\s*\d/;
  * 실제 파일에서 서로 다른 제목 3,003건 중 2,562건(85%)이 정확히 29~30자였다.
  * 즉 이 길이에 닿은 제목은 뒤가 잘려 있다고 봐야 한다.
  */
-const EXPORT_TRUNCATION_WIDTH = 29;
+const EXPORT_TRUNCATION_BAND: readonly number[] = [29, 30];
+
+/** 사람·직책을 가리키는 말. 잘라 쓴 제목에 남으면 개인이 캘린더에 노출된다. */
+const HONORIFIC = /선생님|부장님|실장님|교장|교감|원장|과장님|[가-힣]{2,4}님/;
 
 /** 제목 열을 그대로 써도 되는지 본다. */
 export function titleColumnIsUsable(title: string, body: string): boolean {
@@ -55,7 +58,10 @@ export function titleColumnIsUsable(title: string, body: string): boolean {
   // 잘림 판정은 «꼬리표를 벗기기 전» 길이로 해야 한다.
   // "[행정실 안내] 2026. 2분기 초과근무 운영실태 점" 은 원본이 30자로 잘린 값인데,
   // 꼬리표를 벗기면 21자가 되어 길이 관문을 통과해 버린다.
-  if (raw.length >= EXPORT_TRUNCATION_WIDTH) return false;
+  //
+  // 딱 29~30자일 때만 «잘렸다»고 본다. 그보다 긴 제목은 자르는 곳을 지나쳤다는 뜻이라
+  // 온전한 제목이다(쿨메신저 내보내기가 아닌 다른 경로로 들어온 쪽지가 그렇다).
+  if (EXPORT_TRUNCATION_BAND.includes(raw.length)) return false;
 
   const t = stripTagBrackets(raw);
   if (t.length < 2 || t.length > MAX_TITLE_CHARS) return false;
@@ -99,6 +105,55 @@ function objectBeforeAction(sentence: string): string | null {
   return null;
 }
 
+/**
+ * 온전하지만 캘린더 칸에 비해 긴 제목을 어절 경계에서 줄인다.
+ * 잘린 제목·인사말·본문 첫 줄은 이미 앞에서 걸러졌으므로 여기 오는 값은 진짜 제목이다.
+ */
+function trimLongTitle(title: string): string | null {
+  const words = title.split(/\s+/);
+  const out: string[] = [];
+  for (const word of words) {
+    const next = [...out, word].join(" ");
+    if (next.length > MAX_TITLE_CHARS) break;
+    out.push(word);
+  }
+  // 줄이다 만 자리에 «및», «8월» 같은 접속사·날짜 조각이 남으면 떼어낸다.
+  while (out.length > 0) {
+    const last = out[out.length - 1]!;
+    if (/^(?:및|또는|그리고|등|관련|안내|건|외)$/.test(last) || /^\d{1,2}(?:월|일|시|주|차)$/.test(last)) {
+      out.pop();
+      continue;
+    }
+    break;
+  }
+
+  const trimmed = out.join(" ").trim();
+  if (trimmed.length < 4) return null;
+  // 줄이다가 «1학년 담임선생님들께» 같은 값이 남으면 쓰지 않는다.
+  if (HONORIFIC.test(trimmed)) return null;
+  if (TITLE_JUNK.some((r) => r.test(trimmed))) return null;
+  return trimmed;
+}
+
+/** 길이만 빼고 제목 열이 쓸 만한가 (줄여서라도 쓸 수 있는지 판단할 때) */
+function titleColumnIsSound(title: string, body: string): boolean {
+  const raw = title.trim();
+  if (EXPORT_TRUNCATION_BAND.includes(raw.length)) return false;
+  const t = stripTagBrackets(raw);
+  if (t.length < 2) return false;
+  if (!/[가-힣A-Za-z0-9]{2}/.test(t)) return false;
+  if (TITLE_JUNK.some((r) => r.test(t))) return false;
+  if (SENTENCE_LIKE.test(t)) return false;
+  if (ADDRESSEE_ONLY.test(t)) return false;
+  if (CLOCK_FRAGMENT.test(t)) return false;
+  const bodyKey = squash(body);
+  for (const candidate of [raw, t]) {
+    const key = squash(candidate);
+    if (key.length >= 8 && bodyKey.startsWith(key.slice(0, 12))) return false;
+  }
+  return true;
+}
+
 export function buildTitle(args: {
   titleColumn: string;
   body: string;
@@ -128,6 +183,12 @@ export function buildTitle(args: {
   if (signals.action !== null) return signals.action.label;
 
   if (phrase !== undefined) return phrase;
+
+  // 제목 열이 온전한데 캘린더에 비해 길 뿐이라면 어절 경계에서 줄여 쓴다.
+  if (titleColumnIsSound(titleColumn, body)) {
+    const trimmed = trimLongTitle(stripTagBrackets(titleColumn.trim()));
+    if (trimmed !== null) return trimmed;
+  }
 
   return CLASSIFICATION_NAMES[classification] ?? "확인 필요";
 }

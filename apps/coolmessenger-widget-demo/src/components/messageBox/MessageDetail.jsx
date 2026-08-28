@@ -32,7 +32,8 @@ export default function MessageDetail({
   const handleExtractAndRegisterSchedule = () => {
     setIsExtracting(true);
     setTimeout(() => {
-      const event = extractScheduleFromText(message.bodyHtml, message.subject);
+      // 기준 시각은 쪽지를 받은 날이다. 이걸 넘기지 않으면 «모레»를 계산할 수 없다.
+      const event = extractScheduleFromText(message.bodyHtml, message.subject, message.timestamp);
       setExtractedEvent(event);
       setIsExtracting(false);
 

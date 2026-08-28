@@ -4,7 +4,7 @@ import {
   AlertTriangle, RefreshCw, Settings, FileText, ChevronRight, MonitorUp
 } from 'lucide-react';
 import WindowFrame from '../desktop/WindowFrame';
-import { extractScheduleFromText } from '../../services/localAiService';
+import { extractSchedulesFromMessage } from '../../services/localAiService';
 import { openDesktopWidget } from '../../utils/desktopWidgetLauncher';
 import confetti from 'canvas-confetti';
 
@@ -97,11 +97,14 @@ export default function AiAssistantWindow({
   const handleBatchSync = () => {
     let count = 0;
     messages.forEach(msg => {
-      const detected = extractScheduleFromText(msg.bodyHtml, msg.subject);
-      if (detected && onAddEvent) {
-        onAddEvent(detected);
-        count++;
-      }
+      // 한 쪽지에 일정이 여럿 들어 있을 수 있으므로 전부 받는다.
+      const detected = extractSchedulesFromMessage(msg);
+      detected.forEach(event => {
+        if (onAddEvent) {
+          onAddEvent(event);
+          count++;
+        }
+      });
     });
     confetti({ particleCount: 60, spread: 50 });
     alert(`[로컬 AI 완료] 받은 쪽지 중 총 ${count}건의 일정을 성공적으로 분석하여 캘린더 위젯에 등록했습니다!\n(바탕화면 위젯을 열어두셨다면 그쪽에도 실시간으로 반영됩니다.)`);

@@ -87,6 +87,11 @@ export function stripTagBrackets(title: string): string {
   // «６월» 같은 전각 문자를 반각으로 맞춘다. 그러지 않으면 숫자로 인식되지 않는다.
   let t = title.normalize("NFKC").trim();
 
+  // 글머리 기호를 먼저 뗀다. «※ (선착순!!) 보강 신청» 처럼 기호가 앞에 붙어 있으면
+  // 뒤따르는 꼬리표 괄호를 알아보지 못한다.
+  const LEADING_SYMBOLS = /^[\s\-–—·•*|:※▶▷◆◇★☆☞▪■□#>]+/;
+  t = t.replace(LEADING_SYMBOLS, "").trim();
+
   // 전체가 한 쌍의 괄호로 감싸여 있으면 벗긴다.
   // 안쪽에 «(화)» 같은 다른 괄호가 있어도 바깥 껍질은 벗긴다.
   const wrapped = t.match(/^([[<({【])\s*(.+?)\s*[\]>)}】]$/);
@@ -99,6 +104,6 @@ export function stripTagBrackets(title: string): string {
   // 앞에 붙은 짧은 꼬리표를 뗀다. 내용이 길면 제목의 일부일 수 있으므로 남긴다.
   t = t.replace(/^[[<({【]\s*[^\]>)}】]{1,8}\s*[\]>)}】]\s*/, "").trim();
 
-  // 남은 글머리 기호 정리
-  return t.replace(/^[\s\-–—·•*|:]+/, "").trim();
+  // 꼬리표를 뗀 뒤 또 기호가 드러날 수 있으므로 한 번 더 정리한다.
+  return t.replace(LEADING_SYMBOLS, "").trim();
 }

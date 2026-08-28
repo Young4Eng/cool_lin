@@ -1,6 +1,8 @@
 // Local AI Engine & Schedule Extraction Service
 // Supports both Browser On-Device Rule-Based NLP & External Local LLMs (Ollama / LM Studio / LocalAI)
 
+import { extractBestEventFromMessage, extractEventsFromMessage } from './scheduleEngineAdapter';
+
 export const AI_SETTINGS_STORAGE_KEY = 'cool_ai_settings';
 
 export const getDefaultAiSettings = () => ({
@@ -28,95 +30,31 @@ export const saveAiSettings = (settings) => {
   localStorage.setItem(AI_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
 };
 
-// 1. Smart Date / Time & Action Extractor (On-Device NLP Engine)
-export function extractScheduleFromText(text, subject = '') {
-  if (!text) return null;
-  const cleanText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
-  const combined = `${subject} ${cleanText}`;
+// 1. 일정 추출 — packages/schedule-engine 규칙 엔진에 위임한다.
+//
+// 예전에는 이 파일에 정규식이 직접 들어 있었는데, 날짜 기준이 오늘로 고정돼 있고
+// 제목이 쪽지별로 하드코딩돼 있어 실제 쪽지에는 맞지 않았다. 지금은 엔진이
+// «쪽지를 받은 날»을 기준으로 「모레」·「금요일까지」를 계산하고, 확인이 필요한
+// 부분에는 표시를 붙여 준다. 규칙은 packages/schedule-engine/RULES.md 를 본다.
 
-  // Date regex patterns (Korean format)
-  // e.g., 8월 27일, 8/27, 2026-08-27, 9월 1일(화)
-  const dateMatch = combined.match(/(?:2026년\s*)?(\d{1,2})월\s*(\d{1,2})일(?:\s*\([월화수목금토일]\))?/) ||
-                    combined.match(/(\d{1,2})\/(\d{1,2})/);
+/**
+ * 쪽지에서 일정 하나를 뽑는다. 못 뽑으면 null.
+ *
+ * @param {string} text     본문 (HTML 가능)
+ * @param {string} subject  제목 열
+ * @param {string} sentAt   쪽지를 받은 날. 없으면 상대 날짜를 계산할 수 없다.
+ */
+export function extractScheduleFromText(text, subject = '', sentAt = '') {
+  if (!text || !sentAt) return null;
+  return extractBestEventFromMessage({ bodyHtml: text, subject, timestamp: sentAt });
+}
 
-  let dateStr = '2026-08-28';
-  if (dateMatch) {
-    const month = String(dateMatch[1]).padStart(2, '0');
-    const day = String(dateMatch[2]).padStart(2, '0');
-    dateStr = `2026-${month}-${day}`;
-  }
-
-  // Time regex patterns
-  // e.g., 17:00, 16:00까지, 12:40, 15시 30분, 오후 4시
-  const timeMatch = combined.match(/(\d{1,2}):(\d{2})/) ||
-                    combined.match(/(?:오전|오후)\s*(\d{1,2})시(?:\s*(\d{1,2})분)?/) ||
-                    combined.match(/(\d{1,2})시\s*(\d{1,2})분/);
-
-  let timeStr = '17:00';
-  if (timeMatch) {
-    if (timeMatch[0].includes(':')) {
-      timeStr = `${String(timeMatch[1]).padStart(2, '0')}:${timeMatch[2]}`;
-    } else {
-      let hour = parseInt(timeMatch[1], 10);
-      if (combined.includes('오후') && hour < 12) hour += 12;
-      const min = timeMatch[2] ? String(timeMatch[2]).padStart(2, '0') : '00';
-      timeStr = `${String(hour).padStart(2, '0')}:${min}`;
-    }
-  }
-
-  // Category & Priority heuristics
-  let category = '업무';
-  let priority = 'medium';
-
-  if (combined.includes('동의서') || combined.includes('공문') || combined.includes('제출') || combined.includes('신청') || combined.includes('마감') || combined.includes('품의')) {
-    category = '공문마감';
-    priority = 'urgent';
-  } else if (combined.includes('회의') || combined.includes('협의회') || combined.includes('위원회')) {
-    category = '회의';
-    priority = 'high';
-  } else if (combined.includes('생활지도') || combined.includes('급식지도') || combined.includes('순번') || combined.includes('보강')) {
-    category = '교무';
-    priority = 'high';
-  } else if (combined.includes('개학') || combined.includes('방학') || combined.includes('지필평가') || combined.includes('시험') || combined.includes('수강신청')) {
-    category = '학사일정';
-    priority = 'high';
-  }
-
-  // Location heuristics
-  let location = '교무실';
-  if (combined.includes('시청각실')) location = '시청각실';
-  else if (combined.includes('교무부')) location = '교무부';
-  else if (combined.includes('행정실')) location = '행정실';
-  else if (combined.includes('복도')) location = '3층 복도';
-  else if (combined.includes('교실') || combined.includes('2-3')) location = '2-3 교실';
-  else if (combined.includes('홈페이지') || combined.includes('나이스')) location = '온라인/나이스';
-
-  // Title Extraction
-  let title = subject.replace(/\[.*?\]/g, '').replace(/수정했습니다~?/g, '').trim();
-  if (combined.includes('동의서')) title = '행정정보공유 동의서 수합 교무부 제출';
-  else if (combined.includes('특근매식비')) title = '8월 특근매식비 지출품의 신청 마감';
-  else if (combined.includes('생활지도')) title = '점심시간 복도 생활지도';
-  else if (combined.includes('교직원 회의') || combined.includes('직원회의')) title = '2학기 전체 교직원 회의 참석';
-  else if (combined.includes('전자칠판')) title = '교실 전자칠판 유지보수 점검';
-  else if (combined.includes('방과후')) title = '방과후학교 수강신청 오픈';
-  else if (!title || title.length < 3) title = '업무 및 일정 마감 확인';
-
-  return {
-    // Date.now() alone collides when several messages are batch-processed
-    // in the same millisecond (e.g. AiAssistantWindow's "전체 동기화"),
-    // producing duplicate React keys in EventList/MiniCalendar — add a
-    // random suffix so every extracted event gets a unique id.
-    id: 'ev-ai-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-    title,
-    date: dateStr,
-    time: timeStr,
-    category,
-    priority,
-    location,
-    description: `[로컬 AI 자동 추출] ${cleanText.substring(0, 140)}...`,
-    fromAi: true,
-    confidence: 0.94
-  };
+/**
+ * 한 쪽지에 일정이 여럿 들어 있을 때 전부 받는다.
+ * 사람이 하나씩 보지 않는 일괄 등록용이라 신뢰도 «낮음»은 뺀다.
+ */
+export function extractSchedulesFromMessage(message) {
+  return extractEventsFromMessage(message, { minBand: '검토 필요' });
 }
 
 // 2. Generate 3-line Summary
