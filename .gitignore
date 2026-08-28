@@ -37,3 +37,6 @@ apps/coolmessenger-widget-demo/src-tauri/gen/
 # 로컬 PII 키·암호문 (실제 위치는 %LOCALAPPDATA%\cool_lin)
 pii.key
 pii-map.json
+
+# 나눠 주려고 저장소 맨 위에 복사해 둔 위젯 설치파일 (원본은 target/release/bundle/nsis)
+쿨린위젯_설치.exe
