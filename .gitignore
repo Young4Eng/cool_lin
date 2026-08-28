@@ -24,3 +24,6 @@ CoolMessenger.exe
 # Windows 에서 `--json=/dev/null` 같은 명령이 만들어 버리는 파일.
 # 추출 결과(실명 포함 가능)가 그대로 들어간다.
 nul
+
+# CoolMessenger.exe 를 저장소 폴더에서 실행하면 만들어지는 창 상태 파일
+.tmp/
