@@ -5,9 +5,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::{AppHandle, Manager, PhysicalPosition};
-use tauri_plugin_autostart::{ManagerExt, MacosLauncher};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 const WIDGET: &str = "widget";
+
+/// `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 에 들어가는 이름.
+/// autostart 플러그인이 `productName` 으로 쓰므로 tauri.conf.json 과 같아야 한다.
+const RUN_NAME: &str = "CoolLin Widget";
 
 /// 위젯 창을 주 모니터 오른쪽 위에 붙인다.
 ///
@@ -47,6 +51,59 @@ fn focus_widget(app: &AppHandle) {
     }
 }
 
+/// 지금 등록돼 있는 자동 실행 명령줄. 등록이 없으면 `None`.
+#[cfg(windows)]
+fn registered_command() -> Option<String> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+
+    RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Run")
+        .ok()?
+        .get_value::<String, _>(RUN_NAME)
+        .ok()
+}
+
+#[cfg(not(windows))]
+fn registered_command() -> Option<String> {
+    None
+}
+
+/// 등록된 명령줄이 이 실행 파일을 가리키는가. 따옴표와 대소문자는 무시한다.
+fn points_here(command: &str) -> bool {
+    let Ok(exe) = std::env::current_exe() else {
+        return true; // 알 수 없으면 건드리지 않는다
+    };
+    let want = exe.to_string_lossy().to_lowercase();
+    let got = command.trim().trim_matches('"').to_lowercase();
+    got.starts_with(&want)
+}
+
+/// 등록된 경로가 낡았으면 지금 실행 파일로 다시 쓴다 (기술계획서 8.6 가).
+///
+/// **등록이 아예 없으면 아무것도 하지 않는다.** 없다는 것은 사용자가 껐다는 뜻일 수 있고,
+/// 첫 실행에서 켜는 일은 화면 쪽(`services/desktopShell.js`)이 맡는다.
+///
+/// **개발 빌드에서는 갱신하지 않는다.** 무조건 덮어쓰면 설치본으로 등록해 둔 PC 에서 개발
+/// 빌드를 한 번 켜는 순간 등록이 `target\debug\...` 를 가리키고, `cargo clean` 한 번에
+/// 그 경로가 사라져 그때부터 부팅해도 아무 것도 뜨지 않는다.
+fn refresh_autostart_path(app: &AppHandle) {
+    if cfg!(debug_assertions) {
+        return;
+    }
+    let Some(command) = registered_command() else {
+        return;
+    };
+    if points_here(&command) {
+        return;
+    }
+
+    // 낡은 경로다. 지우고 지금 실행 파일로 다시 등록한다.
+    let mgr = app.autolaunch();
+    let _ = mgr.disable();
+    let _ = mgr.enable();
+}
+
 /// 지금 부팅 자동 실행이 켜져 있는가.
 #[tauri::command]
 fn autostart_status(app: AppHandle) -> bool {
@@ -76,6 +133,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![autostart_status, autostart_set])
         .setup(|app| {
             place_widget(app.handle());
+            refresh_autostart_path(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())
