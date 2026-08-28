@@ -10,6 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "build:installer": "npm run tauri build && node scripts/copy-installer.mjs",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {

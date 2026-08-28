@@ -7,6 +7,7 @@
     "dev:client": "npm --prefix client run dev",
     "dev:server": "npm --prefix server run dev",
     "dev:widget-demo": "npm --prefix apps/coolmessenger-widget-demo run dev",
+    "widget:installer": "npm --prefix apps/coolmessenger-widget-demo run build:installer",
     "build": "npm --prefix packages/schedule-engine run build && npm --prefix server run build && npm --prefix client run build",
     "install:all": "npm --prefix client install && npm --prefix server install && npm --prefix packages/schedule-engine install && npm --prefix packages/schedule-engine run build && npm --prefix apps/coolmessenger-widget-demo install",
     "engine:analyze": "npm --prefix packages/schedule-engine run analyze",

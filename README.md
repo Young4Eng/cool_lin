@@ -85,11 +85,16 @@ npm run build
 (기술계획서 4장이 정한 셸). Rust 툴체인과 WebView2 런타임이 필요하다.
 
 ```bash
-npm --prefix apps/coolmessenger-widget-demo run tauri build
+npm run widget:installer
 ```
 
-`src-tauri/target/release/bundle/nsis/` 에 `*_x64-setup.exe` 가 생긴다 (약 1.2MB,
-사용자 계정 설치라 관리자 권한이 필요 없다).
+`src-tauri/target/release/bundle/nsis/` 에 `*_x64-setup.exe` 가 생긴다 (약 1.3MB,
+사용자 계정 설치라 관리자 권한이 필요 없다). 그 깊이까지 들어가 찾지 않도록 저장소 맨 위에
+`쿨린위젯_설치.exe` 로 한 벌 복사해 둔다 — 나눠 줄 때는 이 파일을 집으면 된다. 사본은
+커밋하지 않는다.
+
+설치파일 없이 빌드만 하려면 `npm --prefix apps/coolmessenger-widget-demo run tauri build` 를
+쓴다. 복사 단계만 다시 돌리려면 `node apps/coolmessenger-widget-demo/scripts/copy-installer.mjs`.
 
 **창은 위젯 하나다.** 설치본은 「일정도우미」 메인 창을 띄우지 않는다.
 
