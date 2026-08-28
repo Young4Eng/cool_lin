@@ -17,6 +17,7 @@ export const getDefaultAiSettings = () => ({
   temperature: 0.3,
   autoExtractSchedule: true,      // 쪽지 수신 시 자동으로 일정 후보 추출
   autoNotifyNewMessage: true,     // 새 쪽지 도착 시 알림 토스트
+  serverEndpoint: 'http://localhost:4000', // 실제 쿨메신저 다운로드+엔진 서버 (server/)
   deadlineReminderEnabled: true,  // 마감 전 알림 서비스
   deadlineReminderMinutes: 60,    // 마감 몇 분 전에 알릴지
 });

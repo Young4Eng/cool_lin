@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles, Bot, Calendar, Clock, Send, CheckCircle2,
-  AlertTriangle, RefreshCw, Settings, FileText, ChevronRight, MonitorUp
+  AlertTriangle, RefreshCw, Settings, FileText, ChevronRight, MonitorUp,
+  MonitorCog, Download, WifiOff
 } from 'lucide-react';
 import WindowFrame from '../desktop/WindowFrame';
 import { extractSchedulesFromMessage } from '../../services/localAiService';
 import { openDesktopWidget } from '../../utils/desktopWidgetLauncher';
+import { fetchFreshFromCoolMessenger, fetchFromLatestDownload, isServerReachable } from '../../services/realIngestClient';
 import confetti from 'canvas-confetti';
 
 export default function AiAssistantWindow({
@@ -35,6 +37,35 @@ export default function AiAssistantWindow({
     }
   ]);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Real-data pipeline state: 쿨메신저 자동 다운로드 → schedule-engine →
+  // (서버가 알아서) 로컬 Ollama 2차 분석 → 위젯. server/가 꺼져 있으면
+  // 조용히 "오프라인"으로만 표시하고, 시뮬레이션 경로는 그대로 쓸 수 있다.
+  const [serverOnline, setServerOnline] = useState(null); // null = checking
+  const [isFetchingReal, setIsFetchingReal] = useState(false);
+  const [realFetchResult, setRealFetchResult] = useState(null); // { count, file, error }
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    isServerReachable().then((ok) => { if (!cancelled) setServerOnline(ok); });
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
+  const handleFetchReal = async (mode) => {
+    setIsFetchingReal(true);
+    setRealFetchResult(null);
+    try {
+      const result = mode === 'fresh' ? await fetchFreshFromCoolMessenger() : await fetchFromLatestDownload();
+      result.events.forEach((event) => onAddEvent && onAddEvent(event));
+      setRealFetchResult({ count: result.events.length, file: result.file });
+      if (result.events.length > 0) confetti({ particleCount: 60, spread: 50 });
+    } catch (e) {
+      setRealFetchResult({ count: 0, error: e.message || '가져오기에 실패했습니다.' });
+    } finally {
+      setIsFetchingReal(false);
+    }
+  };
 
   if (!isOpen || isMinimized) return null;
 
@@ -193,16 +224,80 @@ export default function AiAssistantWindow({
       <div className="flex-1 flex flex-col min-h-0 bg-slate-50 p-3.5 text-xs overflow-hidden">
         {activeTab === 'briefing' && (
           <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-            {/* Quick Action Card: 쪽지 일정 일괄 동기화 */}
+            {/* Real data pipeline: 실제 쿨메신저 자동 다운로드 → schedule-engine → 위젯 */}
+            <div className="bg-gradient-to-r from-cool-700 to-slate-800 text-white rounded-xl p-3.5 shadow-md">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-bold text-[13px] flex items-center gap-1.5">
+                    <MonitorCog size={15} className="text-emerald-300" />
+                    <span>실제 쿨메신저 연동</span>
+                    {serverOnline === null ? (
+                      <span className="text-[9.5px] font-normal bg-white/15 px-1.5 py-0.5 rounded-full">확인 중…</span>
+                    ) : serverOnline ? (
+                      <span className="flex items-center gap-0.5 text-[9.5px] font-normal bg-emerald-400/20 text-emerald-200 px-1.5 py-0.5 rounded-full">
+                        <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" /> 서버 연결됨
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-0.5 text-[9.5px] font-normal bg-white/15 px-1.5 py-0.5 rounded-full">
+                        <WifiOff size={9} /> 서버 꺼짐
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-200 mt-0.5">
+                    쿨메신저 창에서 .xls를 자동 다운로드 → 규칙 엔진 추출 → 로컬 Ollama 2차 분석까지 거친
+                    진짜 데이터를 위젯에 바로 반영합니다. (아래 "쪽지 일정 일괄 분석"은 이 앱 안의 시뮬레이션 데이터용입니다.)
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 mt-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleFetchReal('latest')}
+                  disabled={isFetchingReal || serverOnline === false}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-white/15 hover:bg-white/25 disabled:opacity-40 disabled:cursor-not-allowed border border-white/25 text-white font-semibold px-3 py-1.5 rounded-lg text-[11px] transition-colors"
+                  title="이미 내려받아 열려 있는 최신 파일에서 다시 추출 (빠름)"
+                >
+                  <RefreshCw size={12} className={isFetchingReal ? 'animate-spin' : ''} />
+                  최신 파일에서 가져오기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFetchReal('fresh')}
+                  disabled={isFetchingReal || serverOnline === false}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-800 font-bold px-3 py-1.5 rounded-lg text-[11px] shadow-sm transition-colors"
+                  title="쿨메신저 창을 조작해 지금 새로 내려받음 (최대 90초)"
+                >
+                  <Download size={12} />
+                  지금 새로 다운로드
+                </button>
+              </div>
+
+              {serverOnline === false && (
+                <p className="text-[10.5px] text-slate-300 mt-2">
+                  server/가 꺼져 있어요. 루트에서 <code className="bg-black/20 px-1 rounded">npm run dev:server</code> 실행 후 다시 시도해 주세요.
+                </p>
+              )}
+
+              {realFetchResult && (
+                <div className={`mt-2 p-2 rounded-lg text-[10.5px] leading-snug ${realFetchResult.error ? 'bg-rose-500/20 text-rose-100' : 'bg-emerald-500/20 text-emerald-100'}`}>
+                  {realFetchResult.error
+                    ? `가져오기 실패: ${realFetchResult.error}`
+                    : `실제 쪽지에서 일정 ${realFetchResult.count}건을 캘린더/검토함에 반영했습니다.${realFetchResult.file ? ` (${realFetchResult.file.split(/[\\/]/).pop()})` : ''}`}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Action Card: 쪽지 일정 일괄 동기화 (시뮬레이션 데이터) */}
             <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl p-3.5 shadow-md">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-bold text-[13px] flex items-center gap-1.5">
                     <Sparkles size={15} className="text-amber-300 animate-spin-slow" />
-                    <span>쪽지 일정 일괄 자동 분석 & 위젯 연동</span>
+                    <span>쪽지 일정 일괄 자동 분석 & 위젯 연동 (시뮬레이션)</span>
                   </div>
                   <p className="text-[11px] text-purple-100 mt-0.5">
-                    수신된 쪽지들의 마감 기한 및 회의 일정을 AI가 캘린더 위젯으로 자동 등록합니다.
+                    이 앱 안의 예시 쪽지들로 데모합니다. 실제 데이터는 위의 "실제 쿨메신저 연동"을 쓰세요.
                   </p>
                 </div>
                 <button
