@@ -1,13 +1,24 @@
-import React, { useCallback, useState } from 'react';
-import { Plus, Check, Trash2, Link, Star, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Plus, Check, Trash2, Link, Star, GripVertical, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react';
 import { pinnedSorted, pinOrderBetween, splitByDone } from '../../utils/listOrdering';
 import { useDragReorder } from '../../utils/useDragReorder';
 
+// 할 일 목록.
+//
+// 쿨메신저에서 가져온 «일정»도 여기 함께 뜬다. 교사가 실제로 하는 일은 «오늘 뭘
+// 해치워야 하나» 하나인데, 가져온 일정과 직접 적은 할 일이 서로 다른 탭에 나뉘어
+// 있으면 두 곳을 오가며 확인해야 한다.
+//
+// EventList 가 할 일을 일정 목록에 섞어 그리는 것과 같은 방식이다 — 배열을 따로
+// 만들어 동기화하지 않고, 양쪽 탭이 같은 객체를 모양만 달리해 그린다. 그래서 여기서
+// 체크하면 일정 목록에서도 곧바로 취소선이 그어지고 맨 아래로 내려간다.
+
 export default function TodoList({
   todos = [],
-  onToggleTodo,
+  events = [],
+  onToggleItem,
   onAddTodo,
-  onDeleteTodo,
+  onDeleteItem,
   onOpenMessage,
   onToggleStar,
   onReorder,
@@ -29,17 +40,44 @@ export default function TodoList({
     setNewTodoText('');
   };
 
+  // 할 일과 일정을 한 모양으로 맞춘다. kind 로 어느 저장소에 되돌려 쓸지 가른다.
+  const items = useMemo(() => {
+    const todoItems = todos.map((t) => ({
+      kind: 'todo',
+      id: t.id,
+      text: t.text,
+      dueDate: t.dueDate,
+      completed: t.completed,
+      starred: t.starred,
+      pinOrder: t.pinOrder,
+      linkedMessageId: t.linkedMessageId,
+    }));
+    const eventItems = events.map((e) => ({
+      kind: 'event',
+      id: e.id,
+      text: e.title,
+      dueDate: e.date,
+      time: e.time,
+      completed: e.completed,
+      starred: e.starred,
+      pinOrder: e.pinOrder,
+    }));
+    return [...todoItems, ...eventItems];
+  }, [todos, events]);
+
   const canDrag = !!onReorder;
 
   const commitDrag = useCallback(
     (id, target) => {
-      const pinned = pinnedSorted(todos).filter((t) => t.id !== id);
+      const dragged = items.find((it) => it.id === id);
+      if (!dragged) return;
+      const pinned = pinnedSorted(items).filter((it) => it.id !== id);
       let order;
       if (target.toPinnedEnd) {
         const last = pinned[pinned.length - 1];
         order = pinOrderBetween(last ? last.pinOrder : null, null);
       } else {
-        const idx = pinned.findIndex((t) => t.id === target.targetId);
+        const idx = pinned.findIndex((it) => it.id === target.targetId);
         if (idx === -1) {
           const last = pinned[pinned.length - 1];
           order = pinOrderBetween(last ? last.pinOrder : null, null);
@@ -48,37 +86,39 @@ export default function TodoList({
           order = pinOrderBetween(before ? before.pinOrder : null, pinned[idx].pinOrder);
         }
       }
-      onReorder(id, order);
+      onReorder(dragged.kind, id, order);
     },
-    [todos, onReorder],
+    [items, onReorder],
   );
 
   const { draggingId, overId, onHandlePointerDown } = useDragReorder(commitDrag);
 
-  const { open, done } = splitByDone(todos);
+  const byDue = (a, b) => String(a.dueDate ?? '').localeCompare(String(b.dueDate ?? ''));
+  const sorted = [...items].sort(byDue);
+  const { open, done } = splitByDone(sorted);
   const pinned = pinnedSorted(open);
   const pinnedIds = new Set(pinned.map((t) => t.id));
   const rest = open.filter((t) => !pinnedIds.has(t.id));
 
-  const row = (todo) => (
+  const row = (item) => (
     <div
-      key={todo.id}
-      data-reorder-id={todo.id}
-      onClick={() => onToggleTodo(todo.id)}
+      key={item.id}
+      data-reorder-id={item.id}
+      onClick={() => onToggleItem?.(item.kind, item.id)}
       className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer ${
-        draggingId === todo.id ? 'opacity-50' : ''
+        draggingId === item.id ? 'opacity-50' : ''
       } ${
-        overId === todo.id
+        overId === item.id
           ? 'border-slate-900 border-dashed'
-          : todo.completed
+          : item.completed
             ? 'bg-slate-50 border-slate-200 text-slate-400 opacity-70'
             : 'bg-white border-slate-200 hover:border-cool-300 text-slate-800'
       }`}
     >
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        {canDrag && !todo.completed && (
+        {canDrag && !item.completed && (
           <span
-            onPointerDown={onHandlePointerDown(todo.id)}
+            onPointerDown={onHandlePointerDown(item.id)}
             onClick={(e) => e.stopPropagation()}
             style={{ touchAction: 'none' }}
             className="shrink-0 cursor-grab text-slate-300 hover:text-slate-500 active:cursor-grabbing"
@@ -89,39 +129,44 @@ export default function TodoList({
         )}
         <div
           className={`size-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
-            todo.completed
+            item.completed
               ? 'bg-cool-600 border-cool-600 text-white'
               : 'border-slate-300 bg-white'
           }`}
         >
-          {todo.completed && <Check size={11} />}
+          {item.completed && <Check size={11} />}
         </div>
 
         <div className="min-w-0 flex-1">
-          <span className={`text-[12px] block truncate ${todo.completed ? 'line-through' : 'font-medium'}`}>
-            {todo.text}
+          <span className={`text-[12px] block truncate ${item.completed ? 'line-through' : 'font-medium'}`}>
+            {item.text}
           </span>
-          <span className="text-[10.5px] text-slate-400">
-            기한: {todo.dueDate}
+          <span className="flex items-center gap-1 text-[10.5px] text-slate-400">
+            {/* 가져온 일정인지 직접 적은 할 일인지 한눈에 — 지울 때 되돌리기 어렵기 때문이다 */}
+            {item.kind === 'event' && (
+              <CalendarDays size={9.5} className="shrink-0" aria-label="일정에서 온 항목" />
+            )}
+            기한: {item.dueDate}
+            {item.kind === 'event' && item.time ? ` ${item.time}` : ''}
           </span>
         </div>
       </div>
 
       <div className="flex items-center gap-1 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
-        {onToggleStar && !todo.completed && (
+        {onToggleStar && !item.completed && (
           <button
             type="button"
-            onClick={() => onToggleStar(todo.id)}
+            onClick={() => onToggleStar(item.kind, item.id)}
             className="p-1 text-slate-300 hover:bg-slate-100 rounded"
-            title={todo.starred ? '중요 표시 해제' : '중요 표시 (맨 위로 고정)'}
+            title={item.starred ? '중요 표시 해제' : '중요 표시 (맨 위로 고정)'}
           >
-            <Star size={13} className={todo.starred ? 'fill-amber-400 text-amber-400' : ''} />
+            <Star size={13} className={item.starred ? 'fill-amber-400 text-amber-400' : ''} />
           </button>
         )}
-        {todo.linkedMessageId && onOpenMessage && (
+        {item.linkedMessageId && onOpenMessage && (
           <button
             type="button"
-            onClick={() => onOpenMessage(todo.linkedMessageId)}
+            onClick={() => onOpenMessage(item.linkedMessageId)}
             className="text-cool-600 hover:text-cool-800 p-1"
             title="연동된 쪽지 보기"
           >
@@ -130,9 +175,9 @@ export default function TodoList({
         )}
         <button
           type="button"
-          onClick={() => onDeleteTodo(todo.id)}
+          onClick={() => onDeleteItem?.(item.kind, item.id)}
           className="text-slate-300 hover:text-rose-500 p-1"
-          title="삭제"
+          title={item.kind === 'event' ? '이 일정 삭제 (캘린더에서도 없어집니다)' : '삭제'}
         >
           <Trash2 size={12} />
         </button>
@@ -200,7 +245,7 @@ export default function TodoList({
           </>
         )}
 
-        {todos.length === 0 && (
+        {items.length === 0 && (
           <div className="text-center py-8 text-slate-400 text-xs">
             등록된 할 일이 없습니다.
           </div>

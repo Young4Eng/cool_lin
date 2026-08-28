@@ -231,12 +231,15 @@ export default function ScheduleWidget({
             </div>
           )}
 
+          {/* 메인 앱의 할 일 탭에는 일정을 섞지 않는다 — 여기서는 캘린더가 바로 옆에 있다.
+              섞는 것은 탭 하나로 오가야 하는 바탕화면 위젯에서만 값어치가 있다.
+              그래서 kind 는 항상 'todo' 이고, 그대로 흘려보낸다. */}
           {activeTab === 'todo' && (
             <TodoList
               todos={todos}
-              onToggleTodo={onToggleTodo}
+              onToggleItem={(_kind, id) => onToggleTodo(id)}
               onAddTodo={onAddTodo}
-              onDeleteTodo={onDeleteTodo}
+              onDeleteItem={(_kind, id) => onDeleteTodo(id)}
               onOpenMessage={onOpenMessage}
             />
           )}

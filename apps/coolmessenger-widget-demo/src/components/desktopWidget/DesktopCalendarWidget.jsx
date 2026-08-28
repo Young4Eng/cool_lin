@@ -131,13 +131,38 @@ export default function DesktopCalendarWidget() {
     saveStoredTodos(next);
   };
 
-  // 일정 탭에 섞여 나오는 카드에서 체크해도, 할 일 탭에서 체크해도 같은 자리를 고친다.
-  const toggleTodoCompleted = useCallback((id) => {
-    setTodos((prev) => {
-      const next = prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t));
-      saveStoredTodos(next);
-      return next;
-    });
+  // 할 일 탭에서 체크한다. 할 일이든 가져온 일정이든 제자리(각자의 저장소)를 고치므로,
+  // 일정 목록에서도 곧바로 취소선이 그어지고 맨 아래로 내려간다.
+  const toggleItemCompleted = useCallback((kind, id) => {
+    if (kind === 'todo') {
+      setTodos((prev) => {
+        const next = prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t));
+        saveStoredTodos(next);
+        return next;
+      });
+    } else {
+      setEvents((prev) => {
+        const next = prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e));
+        saveStoredSchedule(next);
+        return next;
+      });
+    }
+  }, []);
+
+  const deleteItem = useCallback((kind, id) => {
+    if (kind === 'todo') {
+      setTodos((prev) => {
+        const next = prev.filter((t) => t.id !== id);
+        saveStoredTodos(next);
+        return next;
+      });
+    } else {
+      setEvents((prev) => {
+        const next = prev.filter((e) => e.id !== id);
+        saveStoredSchedule(next);
+        return next;
+      });
+    }
   }, []);
 
   // 가져오기 막대와 확장 달력의 「+」가 함께 쓴다 — 같은 제목·날짜면 두 번 넣지 않는다.
@@ -228,7 +253,10 @@ export default function DesktopCalendarWidget() {
 
   const reviewEvents = events.filter(needsReview);
   const calendarEvents = events.filter((e) => !needsReview(e));
-  const openTodos = todos.filter((t) => !t.completed).length;
+  // 할 일 탭에는 가져온 일정도 함께 뜨므로, 숫자도 둘을 합쳐 센다 — 탭에 적힌 수와
+  // 열었을 때 보이는 줄 수가 다르면 그 숫자를 믿지 않게 된다.
+  const openTodos =
+    todos.filter((t) => !t.completed).length + calendarEvents.filter((e) => !e.completed).length;
   const todayLabel = now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
   const timeLabel = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 
@@ -402,11 +430,12 @@ export default function DesktopCalendarWidget() {
         {activeTab === 'todo' && (
           <TodoList
             todos={todos}
-            onToggleTodo={toggleTodoCompleted}
+            events={calendarEvents}
+            onToggleItem={toggleItemCompleted}
             onAddTodo={(t) => persistTodos([t, ...todos])}
-            onDeleteTodo={(id) => persistTodos(todos.filter((t) => t.id !== id))}
-            onToggleStar={(id) => toggleStar('todo', id)}
-            onReorder={(id, order) => reorder('todo', id, order)}
+            onDeleteItem={deleteItem}
+            onToggleStar={toggleStar}
+            onReorder={reorder}
           />
         )}
       </main>

@@ -159,7 +159,12 @@ export default function MobileShell({
                 <EventList events={reviewEvents} selectedDate={null} onDeleteEvent={onDeleteEvent} onApproveEvent={onApproveEvent} mode="review" />
               )}
               {calendarTab === 'todo' && (
-                <TodoList todos={todos} onToggleTodo={onToggleTodo} onAddTodo={onAddTodo} onDeleteTodo={onDeleteTodo} />
+                <TodoList
+                  todos={todos}
+                  onToggleItem={(_kind, id) => onToggleTodo(id)}
+                  onAddTodo={onAddTodo}
+                  onDeleteItem={(_kind, id) => onDeleteTodo(id)}
+                />
               )}
             </div>
           </div>
