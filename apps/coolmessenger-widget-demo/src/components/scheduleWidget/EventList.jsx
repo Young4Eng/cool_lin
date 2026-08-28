@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { CalendarPlus, Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { eventSummary } from '../../utils/summarizeMessage';
+import { openGoogleCalendar } from '../../utils/googleCalendar';
 
 // 카드에는 «무엇을 · 언제 · 무슨 내용» 셋만 둔다.
 //
@@ -35,11 +36,22 @@ function DDayLabel({ days }) {
   );
 }
 
-function EventCard({ event, mode, onDeleteEvent, onOpenSource, onApproveEvent }) {
+function EventCard({ event, mode, onDeleteEvent, onOpenSource, onApproveEvent, onAddToGoogleCalendar }) {
   const [expanded, setExpanded] = useState(false);
   const days = dDay(event.date);
   const flags = event.ambiguityFlags ?? [];
   const summary = eventSummary(event);
+  const addedToGoogle = Boolean(event.googleCalendarAddedAt);
+
+  const handleAddToGoogle = (e) => {
+    e.stopPropagation();
+    try {
+      const { added } = openGoogleCalendar(event);
+      onAddToGoogleCalendar?.(added);
+    } catch {
+      // 제목/날짜가 비면 URL을 못 만든다. 위젯은 그대로 둔다.
+    }
+  };
 
   return (
     <article
@@ -116,8 +128,23 @@ function EventCard({ event, mode, onDeleteEvent, onOpenSource, onApproveEvent })
         </div>
       )}
 
-      {/* 삭제는 평소에 숨겨 둔다 — 흘깃 보는 화면에 위험한 버튼을 상시 노출하지 않는다 */}
-      <div className="mt-1 flex justify-end">
+      {/* 구글 캘린더·삭제는 평소에 숨긴다 — 흘깃 보는 화면에 액션을 상시 노출하지 않는다 */}
+      <div className="mt-1 flex justify-end gap-0.5">
+        {mode === 'calendar' && (
+          <button
+            type="button"
+            onClick={handleAddToGoogle}
+            className={`rounded p-0.5 transition-opacity hover:text-[#1D1715] focus:opacity-100 ${
+              addedToGoogle
+                ? 'text-emerald-600 opacity-100'
+                : 'text-[#C9C5BD] opacity-0 group-hover:opacity-100'
+            }`}
+            title={addedToGoogle ? '구글 캘린더에 추가됨 · 다시 열기' : '구글 캘린더에 추가'}
+            aria-label={`${event.title} 구글 캘린더에 추가`}
+          >
+            <CalendarPlus size={12} />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onDeleteEvent?.(event.id)}
@@ -148,6 +175,7 @@ export default function EventList({
   onDeleteEvent,
   onOpenSource,
   onApproveEvent,
+  onAddToGoogleCalendar,
   mode = 'calendar', // 'calendar' | 'review'
 }) {
   const [showPast, setShowPast] = useState(false);
@@ -164,6 +192,7 @@ export default function EventList({
       onDeleteEvent={onDeleteEvent}
       onOpenSource={onOpenSource}
       onApproveEvent={onApproveEvent}
+      onAddToGoogleCalendar={onAddToGoogleCalendar}
     />
   );
 

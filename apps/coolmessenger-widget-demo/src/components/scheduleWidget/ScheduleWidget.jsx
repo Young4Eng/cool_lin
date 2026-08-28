@@ -34,6 +34,7 @@ export default function ScheduleWidget({
   onAddEvent,
   onDeleteEvent,
   onApproveEvent,
+  onAddToGoogleCalendar,
   onToggleTodo,
   onAddTodo,
   onDeleteTodo,
@@ -207,6 +208,7 @@ export default function ScheduleWidget({
                   selectedDate={selectedDate}
                   onDeleteEvent={onDeleteEvent}
                   onOpenMessageFromEvent={onOpenMessage}
+                  onAddToGoogleCalendar={onAddToGoogleCalendar}
                   mode="calendar"
                 />
               </div>

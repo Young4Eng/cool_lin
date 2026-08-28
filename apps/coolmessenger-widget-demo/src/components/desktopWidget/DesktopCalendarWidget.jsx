@@ -252,6 +252,9 @@ export default function DesktopCalendarWidget() {
                 selectedDate={selectedDate}
                 onDeleteEvent={(id) => persistEvents(events.filter((e) => e.id !== id))}
                 onOpenSource={setSourceEvent}
+                onAddToGoogleCalendar={(added) =>
+                  persistEvents(events.map((e) => (e.id === added.id ? added : e)))
+                }
                 mode="calendar"
               />
             </div>
