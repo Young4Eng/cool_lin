@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, Check, Trash2, Link } from 'lucide-react';
+import { Plus, Check, Trash2, Link, Star, GripVertical } from 'lucide-react';
+import { pinnedSorted, pinOrderBetween } from '../../utils/listOrdering';
 
 export default function TodoList({
   todos = [],
@@ -7,9 +8,13 @@ export default function TodoList({
   onAddTodo,
   onDeleteTodo,
   onOpenMessage,
+  onToggleStar,
+  onReorder,
 }) {
   const [newTodoText, setNewTodoText] = useState('');
   const [newTodoDate, setNewTodoDate] = useState('2026-08-28');
+  const [draggingId, setDraggingId] = useState(null);
+  const [overId, setOverId] = useState(null);
 
   const handleCreate = (e) => {
     e.preventDefault();
@@ -22,6 +27,128 @@ export default function TodoList({
       priority: 'medium',
     });
     setNewTodoText('');
+  };
+
+  const canDrag = !!onReorder;
+
+  const dropOnto = (targetId) => {
+    if (!draggingId || draggingId === targetId) return;
+    const pinned = pinnedSorted(todos).filter((t) => t.id !== draggingId);
+    const targetIdx = pinned.findIndex((t) => t.id === targetId);
+    const before = targetIdx > 0 ? pinned[targetIdx - 1] : null;
+    const after = targetIdx >= 0 ? pinned[targetIdx] : null;
+    const order = pinOrderBetween(before ? before.pinOrder : null, after ? after.pinOrder : null);
+    onReorder(draggingId, order);
+    setDraggingId(null);
+    setOverId(null);
+  };
+
+  const dropAtPinnedEnd = () => {
+    if (!draggingId) return;
+    const pinned = pinnedSorted(todos).filter((t) => t.id !== draggingId);
+    const last = pinned[pinned.length - 1];
+    const order = pinOrderBetween(last ? last.pinOrder : null, null);
+    onReorder(draggingId, order);
+    setDraggingId(null);
+    setOverId(null);
+  };
+
+  const pinned = pinnedSorted(todos);
+  const pinnedIds = new Set(pinned.map((t) => t.id));
+  const rest = todos.filter((t) => !pinnedIds.has(t.id));
+
+  const row = (todo) => {
+    const dragHandlers = !canDrag
+      ? {}
+      : {
+          draggable: true,
+          onDragStart: () => setDraggingId(todo.id),
+          onDragEnd: () => {
+            setDraggingId(null);
+            setOverId(null);
+          },
+          onDragOver: (e) => {
+            e.preventDefault();
+            setOverId(todo.id);
+          },
+          onDrop: (e) => {
+            e.preventDefault();
+            e.stopPropagation(); // 이 줄에 놓았으면 부모(고정 영역)의 「맨 끝에 놓기」로 다시 덮이면 안 된다
+            dropOnto(todo.id);
+          },
+        };
+    const isDragOver = overId === todo.id && draggingId !== todo.id;
+
+    return (
+      <div
+        key={todo.id}
+        {...dragHandlers}
+        onClick={() => onToggleTodo(todo.id)}
+        className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer ${
+          isDragOver ? 'border-slate-900 border-dashed' :
+          todo.completed
+            ? 'bg-slate-50 border-slate-200 text-slate-400 opacity-70'
+            : 'bg-white border-slate-200 hover:border-cool-300 text-slate-800'
+        }`}
+      >
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {canDrag && (
+            <span className="shrink-0 cursor-grab text-slate-300 active:cursor-grabbing" title="끌어서 순서 바꾸기">
+              <GripVertical size={13} />
+            </span>
+          )}
+          <div
+            className={`size-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
+              todo.completed
+                ? 'bg-cool-600 border-cool-600 text-white'
+                : 'border-slate-300 bg-white'
+            }`}
+          >
+            {todo.completed && <Check size={11} />}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <span className={`text-[12px] block truncate ${todo.completed ? 'line-through' : 'font-medium'}`}>
+              {todo.text}
+            </span>
+            <span className="text-[10.5px] text-slate-400">
+              기한: {todo.dueDate}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+          {onToggleStar && (
+            <button
+              type="button"
+              onClick={() => onToggleStar(todo.id)}
+              className="p-1 text-slate-300 hover:bg-slate-100 rounded"
+              title={todo.starred ? '중요 표시 해제' : '중요 표시 (맨 위로 고정)'}
+            >
+              <Star size={13} className={todo.starred ? 'fill-amber-400 text-amber-400' : ''} />
+            </button>
+          )}
+          {todo.linkedMessageId && onOpenMessage && (
+            <button
+              type="button"
+              onClick={() => onOpenMessage(todo.linkedMessageId)}
+              className="text-cool-600 hover:text-cool-800 p-1"
+              title="연동된 쪽지 보기"
+            >
+              <Link size={12} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onDeleteTodo(todo.id)}
+            className="text-slate-300 hover:text-rose-500 p-1"
+            title="삭제"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -52,59 +179,26 @@ export default function TodoList({
 
       {/* Todo Items */}
       <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
-        {todos.map(todo => (
+        {(pinned.length > 0 || draggingId) && (
           <div
-            key={todo.id}
-            onClick={() => onToggleTodo(todo.id)}
-            className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer ${
-              todo.completed
-                ? 'bg-slate-50 border-slate-200 text-slate-400 opacity-70'
-                : 'bg-white border-slate-200 hover:border-cool-300 text-slate-800'
-            }`}
+            onDragOver={canDrag ? (e) => e.preventDefault() : undefined}
+            onDrop={canDrag ? (e) => { e.preventDefault(); dropAtPinnedEnd(); } : undefined}
+            className="mb-1.5 space-y-1.5"
           >
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div
-                className={`size-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
-                  todo.completed
-                    ? 'bg-cool-600 border-cool-600 text-white'
-                    : 'border-slate-300 bg-white'
-                }`}
-              >
-                {todo.completed && <Check size={11} />}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <span className={`text-[12px] block truncate ${todo.completed ? 'line-through' : 'font-medium'}`}>
-                  {todo.text}
-                </span>
-                <span className="text-[10.5px] text-slate-400">
-                  기한: {todo.dueDate}
-                </span>
-              </div>
+            <div className="flex items-center gap-1 px-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-600">
+              <Star size={10} className="fill-amber-400 text-amber-400" /> 중요 표시
             </div>
-
-            <div className="flex items-center gap-1 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
-              {todo.linkedMessageId && onOpenMessage && (
-                <button
-                  type="button"
-                  onClick={() => onOpenMessage(todo.linkedMessageId)}
-                  className="text-cool-600 hover:text-cool-800 p-1"
-                  title="연동된 쪽지 보기"
-                >
-                  <Link size={12} />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onDeleteTodo(todo.id)}
-                className="text-slate-300 hover:text-rose-500 p-1"
-                title="삭제"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
+            {pinned.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-3 py-3 text-center text-[10.5px] text-amber-700">
+                여기로 끌어오거나 별표를 눌러 고정하세요
+              </div>
+            ) : (
+              pinned.map(row)
+            )}
           </div>
-        ))}
+        )}
+
+        {rest.map(row)}
 
         {todos.length === 0 && (
           <div className="text-center py-8 text-slate-400 text-xs">

@@ -1,6 +1,6 @@
 // LocalStorage Persistence for CoolMessenger State
 
-import { INITIAL_MESSAGES, INITIAL_SCHEDULE_EVENTS, INITIAL_TODOS, INITIAL_CHATS, INITIAL_QUICK_PHRASES, INITIAL_GROUP_CHATS } from '../data/initialData';
+import { INITIAL_MESSAGES, INITIAL_CHATS, INITIAL_QUICK_PHRASES, INITIAL_GROUP_CHATS } from '../data/initialData';
 
 const KEYS = {
   MESSAGES: 'cool_messages_v1',
@@ -30,12 +30,13 @@ export function saveStoredMessages(messages) {
   } catch (e) {}
 }
 
+// 위젯은 실제 쿨메신저 가져오기로 채운다 — 더미 학사일정으로 시작하지 않는다.
 export function loadStoredSchedule() {
   try {
     const data = localStorage.getItem(KEYS.SCHEDULE);
-    return data ? JSON.parse(data) : INITIAL_SCHEDULE_EVENTS;
+    return data ? JSON.parse(data) : [];
   } catch (e) {
-    return INITIAL_SCHEDULE_EVENTS;
+    return [];
   }
 }
 
@@ -48,9 +49,9 @@ export function saveStoredSchedule(events) {
 export function loadStoredTodos() {
   try {
     const data = localStorage.getItem(KEYS.TODOS);
-    return data ? JSON.parse(data) : INITIAL_TODOS;
+    return data ? JSON.parse(data) : [];
   } catch (e) {
-    return INITIAL_TODOS;
+    return [];
   }
 }
 

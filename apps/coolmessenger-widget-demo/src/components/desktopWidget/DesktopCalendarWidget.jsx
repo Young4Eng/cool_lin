@@ -14,6 +14,7 @@ import {
 import { subscribeAiEventAdded } from '../../utils/widgetSync';
 import { ingestOnce } from '../../services/widgetIngest';
 import { ensureAutostartOnFirstRun, inDesktopShell, setAutostart, setWidgetExpanded } from '../../services/desktopShell';
+import { withStarToggled, withPinOrder } from '../../utils/listOrdering';
 
 // 바탕화면 일정 위젯 — 설치본에서는 이 창 하나만 뜬다.
 //
@@ -125,6 +126,15 @@ export default function DesktopCalendarWidget() {
     saveStoredTodos(next);
   };
 
+  // 일정 탭에 섞여 나오는 카드에서 체크해도, 할 일 탭에서 체크해도 같은 자리를 고친다.
+  const toggleTodoCompleted = useCallback((id) => {
+    setTodos((prev) => {
+      const next = prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t));
+      saveStoredTodos(next);
+      return next;
+    });
+  }, []);
+
   // 가져오기 막대와 확장 달력의 「+」가 함께 쓴다 — 같은 제목·날짜면 두 번 넣지 않는다.
   const addEvent = useCallback((event) => {
     setEvents((prev) => {
@@ -142,6 +152,40 @@ export default function DesktopCalendarWidget() {
       setWidgetExpanded(next);
       return next;
     });
+  }, []);
+
+  // 별표(중요 표시) — 일정·할 일 둘 다 같은 방식으로 맨 위에 고정한다.
+  const toggleStar = useCallback((kind, id) => {
+    if (kind === 'todo') {
+      setTodos((prev) => {
+        const next = withStarToggled(prev, id);
+        saveStoredTodos(next);
+        return next;
+      });
+    } else {
+      setEvents((prev) => {
+        const next = withStarToggled(prev, id);
+        saveStoredSchedule(next);
+        return next;
+      });
+    }
+  }, []);
+
+  // 드래그로 순서를 바꾼다 — 다른 영역에서 끌어왔으면 자동으로 별표도 켠다.
+  const reorder = useCallback((kind, id, order) => {
+    if (kind === 'todo') {
+      setTodos((prev) => {
+        const next = withPinOrder(prev, id, order);
+        saveStoredTodos(next);
+        return next;
+      });
+    } else {
+      setEvents((prev) => {
+        const next = withPinOrder(prev, id, order);
+        saveStoredSchedule(next);
+        return next;
+      });
+    }
   }, []);
 
   const handleToggleAutostart = async () => {
@@ -308,9 +352,13 @@ export default function DesktopCalendarWidget() {
               </div>
               <EventList
                 events={calendarEvents}
+                todos={todos}
                 selectedDate={selectedDate}
                 onDeleteEvent={(id) => persistEvents(events.filter((e) => e.id !== id))}
                 onOpenSource={setSourceEvent}
+                onToggleTodo={toggleTodoCompleted}
+                onToggleStar={toggleStar}
+                onReorder={reorder}
                 mode="calendar"
               />
             </div>
@@ -338,9 +386,11 @@ export default function DesktopCalendarWidget() {
         {activeTab === 'todo' && (
           <TodoList
             todos={todos}
-            onToggleTodo={(id) => persistTodos(todos.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)))}
+            onToggleTodo={toggleTodoCompleted}
             onAddTodo={(t) => persistTodos([t, ...todos])}
             onDeleteTodo={(id) => persistTodos(todos.filter((t) => t.id !== id))}
+            onToggleStar={(id) => toggleStar('todo', id)}
+            onReorder={(id, order) => reorder('todo', id, order)}
           />
         )}
       </main>
