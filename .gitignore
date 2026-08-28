@@ -27,3 +27,9 @@ nul
 
 # CoolMessenger.exe 를 저장소 폴더에서 실행하면 만들어지는 창 상태 파일
 .tmp/
+
+# Tauri 빌드 산출물 (Rust target 은 수 GB 가 된다)
+src-tauri/target/
+apps/coolmessenger-widget-demo/src-tauri/target/
+# Tauri 가 빌드할 때 다시 만드는 스키마
+apps/coolmessenger-widget-demo/src-tauri/gen/

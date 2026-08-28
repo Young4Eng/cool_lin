@@ -79,6 +79,32 @@ npm run dev:client
 npm run build
 ```
 
+## 바탕화면 위젯 설치본 만들기
+
+위젯 데모(`apps/coolmessenger-widget-demo`)에는 Tauri 2 셸이 붙어 있어 설치파일을 만들 수 있다
+(기술계획서 4장이 정한 셸). Rust 툴체인과 WebView2 런타임이 필요하다.
+
+```bash
+npm --prefix apps/coolmessenger-widget-demo run tauri build
+```
+
+`src-tauri/target/release/bundle/nsis/` 에 `*_x64-setup.exe` 가 생긴다 (약 1.2MB,
+사용자 계정 설치라 관리자 권한이 필요 없다).
+
+창은 둘이다. `tauri.conf.json` 이 선언한다.
+
+| 창 | 내용 | 비고 |
+|---|---|---|
+| `main` | 쿨메신저 데모 + 일정 위젯 패널 | 1280×860 |
+| `widget` | 바탕화면 캘린더 위젯 | 360×620, 항상 위 |
+
+위젯 창 위치는 **`tauri.conf.json` 에 적지 않는다.** 배율이 다른 PC 에서 화면 밖으로 밀려나기
+때문이다 (150% 배율에서 `x: 1480` 이 물리 1850px 이 되어 잘렸다). `src-tauri/src/main.rs` 가
+실행 시점에 주 모니터 오른쪽 위로 계산해 붙인다.
+
+브라우저에서 위젯은 `window.open` 팝업이라 팝업 차단에 걸릴 수 있지만, 설치본에서는 미리
+선언된 창을 띄우므로 차단이 없다 (`src/utils/desktopWidgetLauncher.js`).
+
 ## 쿨메신저 메시지 엑셀 내려받기 (이슈 #1)
 
 이 기능은 이미 켜 있는 쿨메신저(모의) 창을 조작한다. 메신저를 새로 켜지 않고, 메인 창이든 메시지 관리함이 이미 열려 있든 어제~오늘 텍스트를 xls로 받는다.

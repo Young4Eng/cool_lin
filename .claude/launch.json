@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "widget-demo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/coolmessenger-widget-demo", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

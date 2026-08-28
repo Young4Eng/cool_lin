@@ -1,0 +1,69 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CoolLin Schedule Widget",
+  "version": "0.1.0",
+  "identifier": "kr.coollin.schedule.widget",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "쿨린 일정도우미 — 쿨메신저 데모",
+        "url": "index.html",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "center": true
+      },
+      {
+        "label": "widget",
+        "title": "쿨린 캘린더 위젯",
+        "url": "widget.html",
+        "width": 360,
+        "height": 620,
+        "minWidth": 300,
+        "minHeight": 420,
+        "resizable": true,
+        "alwaysOnTop": true,
+        "center": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "shortDescription": "쿨메신저 쪽지에서 뽑은 일정을 바탕화면 위젯으로 보여 주는 데모",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": false
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "Korean"
+        ],
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}
