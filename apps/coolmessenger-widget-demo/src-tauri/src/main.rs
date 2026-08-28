@@ -5,6 +5,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+/// 콘솔 창 없이 자식 프로세스를 띄우는 윈도우 플래그.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
@@ -336,13 +342,29 @@ fn is_ymd(s: &str) -> bool {
 ///
 /// 파이썬을 여기서 직접 부른다. Node 서버를 거칠 이유가 없다 — 서버가 하던 일은
 /// 이 명령을 대신 실행해 주는 것뿐이었다. 마지막 stdout 줄(JSON)을 그대로 돌려준다.
+///
+/// **반드시 다른 스레드에서 기다려야 한다.** 동기 명령은 주 스레드에서 도는데, 그러면
+/// 파이썬이 끝날 때까지 위젯의 창 스레드가 메시지를 못 돌린다. 그동안 자동화는
+/// `AttachThreadInput` 으로 그 스레드에 입력을 붙이려 하고, 그 호출은 상대가 메시지를
+/// 돌려야 끝난다 — 서로 기다리며 영원히 멈춘다 (실제로 겪었다: 가져오기를 누르면
+/// 위젯이 숨은 채 돌아오지 않았다).
 #[tauri::command]
-fn run_messenger_download(
+async fn run_messenger_download(
     app: AppHandle,
     start: Option<String>,
     end: Option<String>,
 ) -> Result<String, String> {
-    let dir = python_dir(&app).ok_or("파이썬 자동화 폴더를 찾지 못했습니다.")?;
+    tauri::async_runtime::spawn_blocking(move || messenger_download_blocking(&app, start, end))
+        .await
+        .map_err(|e| format!("쿨메신저 조작을 시작하지 못했습니다: {e}"))?
+}
+
+fn messenger_download_blocking(
+    app: &AppHandle,
+    start: Option<String>,
+    end: Option<String>,
+) -> Result<String, String> {
+    let dir = python_dir(app).ok_or("파이썬 자동화 폴더를 찾지 못했습니다.")?;
 
     // ingest.py 는 기간을 argv[2], argv[3] 으로 받는다 (YYYYMMDD). 둘 다 있을 때만 넘긴다.
     let mut args: Vec<String> = vec!["-3".into(), "ingest.py".into(), "ingest".into()];
@@ -353,11 +375,17 @@ fn run_messenger_download(
         }
     }
 
-    let output = std::process::Command::new("py")
+    let mut command = std::process::Command::new("py");
+    command
         .args(&args)
         .current_dir(&dir)
         .env("PYTHONIOENCODING", "utf-8")
-        .env("PYTHONUTF8", "1")
+        .env("PYTHONUTF8", "1");
+    // 콘솔 창을 띄우지 않는다. 그냥 두면 가져오기를 누를 때마다 까만 창이 앞으로
+    // 튀어나와 화면을 가린다 — 자동화가 찍는 화면에도 그 창이 들어간다.
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+    let output = command
         .output()
         .map_err(|e| {
             format!("파이썬을 실행하지 못했습니다: {e}. `py -3` 가 설치돼 있는지 확인해 주세요.")
