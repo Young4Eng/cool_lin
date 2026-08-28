@@ -37,3 +37,8 @@ apps/coolmessenger-widget-demo/src-tauri/gen/
 # 로컬 PII 키·암호문 (실제 위치는 %LOCALAPPDATA%\cool_lin)
 pii.key
 pii-map.json
+
+# Windows embeddable CPython + pip wheels. CI fills this; do not commit binaries.
+# CoolMessenger.exe and real message xls stay gitignored above.
+apps/coolmessenger-widget-demo/src-tauri/resources/python-runtime/*
+!apps/coolmessenger-widget-demo/src-tauri/resources/python-runtime/README.md
