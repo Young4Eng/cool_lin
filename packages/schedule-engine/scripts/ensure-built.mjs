@@ -1,11 +1,13 @@
 /**
- * 위젯을 돌리기 전에 규칙 엔진이 빌드돼 있는지 확인한다.
+ * 이 엔진을 쓰는 쪽에서 «빌드돼 있는지» 확인할 때 부르는 스크립트.
  *
- * packages/schedule-engine 은 TypeScript 라 dist/ 를 만들어야 위젯이 import 할 수 있는데,
+ *   node <이 경로> 
+ *
+ * 엔진은 TypeScript 라 dist/ 를 만들어야 다른 패키지가 import 할 수 있는데
  * dist/ 는 .gitignore 대상이다. 그래서 저장소를 새로 받은 사람은 dist/ 가 없고
- * "Could not resolve @cool-lin/schedule-engine/browser" 로 빌드가 깨진다.
+ * "Could not resolve @cool-lin/schedule-engine" 으로 빌드가 깨진다.
  *
- * predev / prebuild 에서 이 파일을 돌려 그 상황을 없앤다.
+ * 위젯과 서버의 predev / prebuild 가 이 파일을 돌려 그 상황을 없앤다.
  * 이미 최신이면 아무것도 하지 않으므로 평소에는 거의 시간이 들지 않는다.
  */
 import { execSync } from "node:child_process";
@@ -14,7 +16,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const engine = path.resolve(here, "../../../packages/schedule-engine");
+// 이 파일은 엔진 패키지 안에 있으므로 위치를 스스로 안다.
+const engine = path.resolve(here, "..");
 const dist = path.join(engine, "dist");
 const src = path.join(engine, "src");
 
@@ -33,11 +36,6 @@ function newestMtime(dir) {
     if (mtime > newest) newest = mtime;
   }
   return newest;
-}
-
-if (!existsSync(engine)) {
-  console.error(`[schedule-engine] ${engine} 을 찾지 못했습니다. 저장소 전체를 받았는지 확인해 주세요.`);
-  process.exit(1);
 }
 
 if (!existsSync(path.join(engine, "node_modules"))) {
