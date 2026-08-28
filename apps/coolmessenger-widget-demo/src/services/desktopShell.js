@@ -7,6 +7,24 @@ export function inDesktopShell() {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+/**
+ * 시스템 브라우저로 URL을 연다.
+ *
+ * 설치본(Tauri)에서 window.open 은 막히거나 빈 웹뷰만 뜬다. 그래서 셸이
+ * 기본 브라우저를 연다. 브라우저 미리보기에서는 window.open 으로 연다.
+ */
+export async function openExternalUrl(url) {
+  if (typeof url !== 'string' || !url.startsWith('https://')) {
+    throw new Error('https URL only');
+  }
+  if (inDesktopShell()) {
+    await invoke('open_url', { url });
+    return;
+  }
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!win) throw new Error('브라우저를 열지 못했습니다');
+}
+
 async function invoke(cmd, args) {
   const { invoke: call } = await import('@tauri-apps/api/core');
   return call(cmd, args);
