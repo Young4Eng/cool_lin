@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { CalendarPlus, Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp, Star, Check, GripVertical, Paperclip } from 'lucide-react';
+import { CalendarPlus, Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp, Star, GripVertical, Paperclip } from 'lucide-react';
 import { eventSummary } from '../../utils/summarizeMessage';
 import { openGoogleCalendar } from '../../utils/googleCalendar';
 import { attachmentNotice } from '../../utils/attachmentExpiry';
@@ -50,7 +50,6 @@ function ItemCard({
   onOpenSource,
   onApproveEvent,
   onAddToGoogleCalendar,
-  onToggleTodo,
   onToggleStar,
   onHandlePointerDown,
   isDragging,
@@ -102,18 +101,9 @@ function ItemCard({
           </span>
         )}
 
-        {isTodo && (
-          <button
-            type="button"
-            onClick={() => onToggleTodo?.(item.id)}
-            className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border transition-colors ${
-              item.completed ? 'border-[#1D1715] bg-[#1D1715] text-white' : 'border-[#C9C5BD] bg-white'
-            }`}
-            aria-label={item.completed ? '완료 취소' : '완료로 표시'}
-          >
-            {item.completed && <Check size={11} />}
-          </button>
-        )}
+        {/* 일정 목록에는 체크상자를 두지 않는다. 완료 표시는 「할 일」 탭에서 하고,
+            여기서는 그 결과(취소선·맨 아래로)만 따라간다 — 흘깃 보는 자리에 같은
+            조작을 두 군데 두면 어디가 «진짜»인지 헷갈린다. */}
 
         {/* 제목이 가장 크고 굵다 — 흘깃 볼 때 이것만 읽힌다 */}
         <h3
@@ -267,7 +257,6 @@ export default function EventList({
   onOpenSource,
   onApproveEvent,
   onAddToGoogleCalendar,
-  onToggleTodo,
   onToggleStar,
   onReorder,
   mode = 'calendar', // 'calendar' | 'review'
@@ -335,7 +324,6 @@ export default function EventList({
       onOpenSource={onOpenSource}
       onApproveEvent={onApproveEvent}
       onAddToGoogleCalendar={onAddToGoogleCalendar}
-      onToggleTodo={onToggleTodo}
       onToggleStar={onToggleStar}
     />
   );

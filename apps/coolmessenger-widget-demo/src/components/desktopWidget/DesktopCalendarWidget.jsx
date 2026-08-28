@@ -373,7 +373,6 @@ export default function DesktopCalendarWidget() {
                 onAddToGoogleCalendar={(added) =>
                   persistEvents(events.map((e) => (e.id === added.id ? added : e)))
                 }
-                onToggleTodo={toggleTodoCompleted}
                 onToggleStar={toggleStar}
                 onReorder={reorder}
                 mode="calendar"

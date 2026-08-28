@@ -30,11 +30,34 @@ export function saveStoredMessages(messages) {
   } catch (e) {}
 }
 
+// 예전 데모 씨앗 데이터의 id. 코드에서는 지웠지만, 그 전에 한 번이라도 켠 PC 에는
+// localStorage 에 그대로 남아 있다 — 설치본을 새로 깔아도 저장소는 지워지지 않는다.
+// 그래서 읽을 때마다 걸러낸다. 사용자가 직접 만든 일정은 id 가 `ev-user-...`,
+// 가져오기로 만든 것은 `ev-ai-...` 라 여기 걸리지 않는다.
+const DEMO_EVENT_IDS = new Set([
+  'ev-01', 'ev-02', 'ev-03', 'ev-04', 'ev-05', 'ev-06', 'ev-07', 'ev-08',
+]);
+const DEMO_TODO_IDS = new Set([
+  'todo-01', 'todo-02', 'todo-03', 'todo-04', 'todo-05',
+]);
+
+/** 남아 있던 데모 항목을 걸러내고, 실제로 지워졌으면 저장소도 정리한다. */
+function withoutDemoRows(list, demoIds, storageKey) {
+  if (!Array.isArray(list)) return [];
+  const kept = list.filter((it) => !demoIds.has(it?.id));
+  if (kept.length !== list.length) {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(kept));
+    } catch (e) {}
+  }
+  return kept;
+}
+
 // 위젯은 실제 쿨메신저 가져오기로 채운다 — 더미 학사일정으로 시작하지 않는다.
 export function loadStoredSchedule() {
   try {
     const data = localStorage.getItem(KEYS.SCHEDULE);
-    return data ? JSON.parse(data) : [];
+    return data ? withoutDemoRows(JSON.parse(data), DEMO_EVENT_IDS, KEYS.SCHEDULE) : [];
   } catch (e) {
     return [];
   }
@@ -49,7 +72,7 @@ export function saveStoredSchedule(events) {
 export function loadStoredTodos() {
   try {
     const data = localStorage.getItem(KEYS.TODOS);
-    return data ? JSON.parse(data) : [];
+    return data ? withoutDemoRows(JSON.parse(data), DEMO_TODO_IDS, KEYS.TODOS) : [];
   } catch (e) {
     return [];
   }
