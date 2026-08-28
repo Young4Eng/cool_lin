@@ -209,19 +209,26 @@ function ItemCard({
           할 일 카드에는 두지 않는다 — 지우는 곳은 할 일 탭이고, 구글에 넣는 것은 일정이다. */}
       {!isTodo && (
         <div className="mt-1 flex justify-end gap-0.5">
+          {/* 구글 캘린더는 늘 보이게 둔다. 마우스를 올려야 나타나면 있는 줄도 모른다.
+              삭제와 달리 잘못 눌러도 되돌릴 수 있는 조작이라 상시 노출해도 된다. */}
           {mode === 'calendar' && (
             <button
               type="button"
               onClick={handleAddToGoogle}
-              className={`rounded p-0.5 transition-opacity hover:text-[#1D1715] focus:opacity-100 ${
+              className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
                 addedToGoogle
-                  ? 'text-emerald-600 opacity-100'
-                  : 'text-[#C9C5BD] opacity-0 group-hover:opacity-100'
+                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  : 'bg-[#E8F0FE] text-[#1A73E8] hover:bg-[#D2E3FC]'
               }`}
-              title={addedToGoogle ? '구글 캘린더에 추가됨 · 다시 열기' : '구글 캘린더에 추가'}
+              title={
+                addedToGoogle
+                  ? '구글 캘린더에 추가됨 · 다시 열기'
+                  : '구글 캘린더에 추가 (로그인돼 있으면 저장 화면이 바로 열립니다)'
+              }
               aria-label={`${item.title} 구글 캘린더에 추가`}
             >
-              <CalendarPlus size={12} />
+              <CalendarPlus size={11} />
+              {addedToGoogle ? '추가됨' : '구글 캘린더'}
             </button>
           )}
           <button
