@@ -201,12 +201,12 @@ function ItemCard({
       {/* 구글 캘린더는 일정 카드에 항상 보이게 둔다. 호버 아이콘만 있으면 없는 것처럼 보인다.
           할 일 카드에는 두지 않는다 — 지우는 곳은 할 일 탭이고, 구글에 넣는 것은 일정이다. */}
       {!isTodo && (
-        <div className="mt-2 flex items-center gap-1">
+        <div className="mt-2 flex items-center justify-end gap-1">
           {mode === 'calendar' && (
             <button
               type="button"
               onClick={handleAddToGoogle}
-              className={`flex min-h-[28px] flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 text-[12px] font-semibold ${
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold ${
                 addedToGoogle
                   ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                   : 'bg-[#1A73E8] text-white hover:bg-[#1557B0]'
@@ -214,8 +214,8 @@ function ItemCard({
               title={addedToGoogle ? '구글 캘린더에 추가됨 · 다시 열기' : '구글 캘린더에 추가'}
               aria-label={`${item.title} 구글 캘린더에 추가`}
             >
-              <CalendarPlus size={14} />
-              {addedToGoogle ? '구글 캘린더에 추가됨' : '구글 캘린더에 추가'}
+              <CalendarPlus size={12} />
+              {addedToGoogle ? '추가됨' : '구글 캘린더'}
             </button>
           )}
           <button
