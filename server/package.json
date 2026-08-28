@@ -9,7 +9,8 @@
     "prebuild": "node ../packages/schedule-engine/scripts/ensure-built.mjs",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "smoke:pii": "tsx scripts/smoke-pii-encrypt.ts"
   },
   "dependencies": {
     "@cool-lin/schedule-engine": "file:../packages/schedule-engine",

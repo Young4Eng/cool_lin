@@ -33,3 +33,7 @@ src-tauri/target/
 apps/coolmessenger-widget-demo/src-tauri/target/
 # Tauri 가 빌드할 때 다시 만드는 스키마
 apps/coolmessenger-widget-demo/src-tauri/gen/
+
+# 로컬 PII 키·암호문 (실제 위치는 %LOCALAPPDATA%\cool_lin)
+pii.key
+pii-map.json

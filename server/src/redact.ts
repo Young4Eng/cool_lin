@@ -1,5 +1,7 @@
 /** Local-only PII redaction. Tokens are stable within a single request. */
 
+import { persistEncryptedPiiMap } from "./encrypt.js";
+
 export type PiiMap = Record<string, string>;
 export type MessageRow = Record<string, string>;
 
@@ -66,7 +68,7 @@ function replaceAllLiteral(haystack: string, needle: string, replacement: string
 
 export function redactSheets(sheets: Record<string, MessageRow[]>): {
   sheets: Record<string, MessageRow[]>;
-  pii_map: PiiMap;
+  pii_tokens: string[];
 } {
   const book = new TokenBook();
   const personPlan: { original: string; token: string; variants: string[] }[] = [];
@@ -111,7 +113,9 @@ export function redactSheets(sheets: Record<string, MessageRow[]>): {
     });
   }
 
-  return { sheets: out, pii_map: book.map };
+  // Originals never leave this process as plaintext: encrypt at rest, return tokens only.
+  persistEncryptedPiiMap(book.map);
+  return { sheets: out, pii_tokens: Object.keys(book.map) };
 }
 
 function redactPatterns(text: string, book: TokenBook, studentIds: boolean): string {
@@ -158,7 +162,7 @@ export function redactMessageFields(input: {
   subject?: string;
   body?: string;
   counterpart?: string;
-}): { subject: string; body: string; counterpart: string } {
+}): { subject: string; body: string; counterpart: string; pii_tokens: string[] } {
   const sheets: Record<string, MessageRow[]> = {
     쪽지: [
       {
@@ -170,11 +174,12 @@ export function redactMessageFields(input: {
       },
     ],
   };
-  const { sheets: redacted } = redactSheets(sheets);
+  const { sheets: redacted, pii_tokens } = redactSheets(sheets);
   const row = redacted["쪽지"]?.[0] ?? {};
   return {
     subject: row["제목"] ?? "",
     body: row["내용"] ?? "",
     counterpart: row["보낸사람"] ?? "",
+    pii_tokens,
   };
 }

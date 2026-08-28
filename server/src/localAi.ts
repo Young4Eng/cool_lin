@@ -126,7 +126,7 @@ export function parseXlsFile(filePath: string, pythonDir: string): Promise<Sheet
   });
 }
 
-function buildPrompt(sheets: Sheets): string {
+export function buildLocalAiPrompt(sheets: Sheets): string {
   const messages: {
     sheet: string;
     제목: string;
@@ -271,6 +271,8 @@ export type LocalAiIngestResult = {
   file?: string | null;
   parsed_from_xls?: boolean;
   redacted_preview?: ReturnType<typeof previewSheets>;
+  /** Token names only. Never the original strings. */
+  pii_tokens?: string[];
 };
 
 export async function runLocalAiIngest(opts: {
@@ -306,7 +308,7 @@ export async function runLocalAiIngest(opts: {
     };
   }
 
-  const { sheets: redacted } = redactSheets(sheets);
+  const { sheets: redacted, pii_tokens } = redactSheets(sheets);
   const redacted_preview = previewSheets(redacted);
 
   if (sheetRowCount(redacted) === 0) {
@@ -317,12 +319,13 @@ export async function runLocalAiIngest(opts: {
       file: file ?? null,
       parsed_from_xls: parsedFromXls,
       redacted_preview,
+      pii_tokens,
     };
   }
 
   let ollama;
   try {
-    ollama = await callOllama(buildPrompt(redacted));
+    ollama = await callOllama(buildLocalAiPrompt(redacted));
   } catch (err) {
     return {
       ok: false,
@@ -331,6 +334,8 @@ export async function runLocalAiIngest(opts: {
       error: ollamaErrorMessage(err),
       file: file ?? null,
       parsed_from_xls: parsedFromXls,
+      redacted_preview,
+      pii_tokens,
     };
   }
 
@@ -349,6 +354,7 @@ export async function runLocalAiIngest(opts: {
     file: file ?? null,
     parsed_from_xls: parsedFromXls,
     redacted_preview,
+    pii_tokens,
     ...(warning ? { warning } : {}),
   };
 }
@@ -383,6 +389,7 @@ export async function handleLocalAiIngest(
       model: result.model,
       items: result.items,
       redacted_preview: result.redacted_preview ?? [],
+      pii_tokens: result.pii_tokens ?? [],
       file: result.file ?? null,
       parsed_from_xls: result.parsed_from_xls ?? false,
       ...(result.warning ? { warning: result.warning } : {}),
@@ -445,6 +452,7 @@ export async function handleLocalAiComplete(req: Request, res: Response): Promis
       ok: true,
       text: ollama.raw.trim(),
       model: ollama.model,
+      pii_tokens: redacted.pii_tokens,
     });
   } catch (err) {
     const timedOut =
@@ -478,5 +486,6 @@ export function handleRedact(req: Request, res: Response): void {
     text: redacted.body,
     subject: redacted.subject,
     counterpart: redacted.counterpart,
+    pii_tokens: redacted.pii_tokens,
   });
 }
