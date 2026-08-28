@@ -1,8 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { CalendarPlus, Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp, Star, GripVertical, Paperclip } from 'lucide-react';
+import { CalendarPlus, Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp, Star, Check, GripVertical } from 'lucide-react';
 import { eventSummary } from '../../utils/summarizeMessage';
 import { openGoogleCalendar } from '../../utils/googleCalendar';
-import { attachmentNotice } from '../../utils/attachmentExpiry';
 import { pinnedSorted, pinOrderBetween, splitByDone } from '../../utils/listOrdering';
 import { useDragReorder } from '../../utils/useDragReorder';
 
@@ -50,6 +49,7 @@ function ItemCard({
   onOpenSource,
   onApproveEvent,
   onAddToGoogleCalendar,
+  onToggleTodo,
   onToggleStar,
   onHandlePointerDown,
   isDragging,
@@ -61,16 +61,15 @@ function ItemCard({
   const flags = item.ambiguityFlags ?? [];
   const summary = isTodo ? '' : eventSummary(item);
   const addedToGoogle = Boolean(item.googleCalendarAddedAt);
-  // 첨부는 보름 안에 받아야 사라지지 않는다 — 일정 날짜와 따로 센다.
-  const attachment = isTodo ? null : attachmentNotice(item);
 
-  const handleAddToGoogle = (e) => {
+  const handleAddToGoogle = async (e) => {
     e.stopPropagation();
+    e.preventDefault();
     try {
-      const { added } = openGoogleCalendar(item);
+      const { added } = await openGoogleCalendar(item);
       onAddToGoogleCalendar?.(added);
     } catch {
-      // 제목/날짜가 비면 URL을 못 만든다. 위젯은 그대로 둔다.
+      // 제목/날짜가 비거나 브라우저를 못 열면 위젯은 그대로 둔다.
     }
   };
 
@@ -101,9 +100,18 @@ function ItemCard({
           </span>
         )}
 
-        {/* 일정 목록에는 체크상자를 두지 않는다. 완료 표시는 「할 일」 탭에서 하고,
-            여기서는 그 결과(취소선·맨 아래로)만 따라간다 — 흘깃 보는 자리에 같은
-            조작을 두 군데 두면 어디가 «진짜»인지 헷갈린다. */}
+        {isTodo && (
+          <button
+            type="button"
+            onClick={() => onToggleTodo?.(item.id)}
+            className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border transition-colors ${
+              item.completed ? 'border-[#1D1715] bg-[#1D1715] text-white' : 'border-[#C9C5BD] bg-white'
+            }`}
+            aria-label={item.completed ? '완료 취소' : '완료로 표시'}
+          >
+            {item.completed && <Check size={11} />}
+          </button>
+        )}
 
         {/* 제목이 가장 크고 굵다 — 흘깃 볼 때 이것만 읽힌다 */}
         <h3
@@ -139,21 +147,6 @@ function ItemCard({
           <span className="flex min-w-0 items-center gap-1">
             <MapPin size={10.5} className="shrink-0 text-[#A8A29B]" />
             <span className="truncate">{item.location}</span>
-          </span>
-        )}
-        {attachment && (
-          <span
-            title={`첨부: ${item.source.attachment} · 받은 날 ${item.source.sentAt}`}
-            className={`flex items-center gap-1 rounded px-1 py-[1px] font-medium ${
-              attachment.tone === 'expired'
-                ? 'bg-[#F8F8F5] text-[#A8A29B] line-through'
-                : attachment.tone === 'urgent'
-                  ? 'bg-rose-50 text-rose-700'
-                  : 'bg-[#F0EFEB] text-[#5B5550]'
-            }`}
-          >
-            <Paperclip size={10} className="shrink-0" />
-            {attachment.text}
           </span>
         )}
       </div>
@@ -205,40 +198,34 @@ function ItemCard({
         </div>
       )}
 
-      {/* 구글 캘린더·삭제는 평소에 숨긴다 — 흘깃 보는 화면에 액션을 상시 노출하지 않는다.
+      {/* 구글 캘린더는 일정 카드에 항상 보이게 둔다. 호버 아이콘만 있으면 없는 것처럼 보인다.
           할 일 카드에는 두지 않는다 — 지우는 곳은 할 일 탭이고, 구글에 넣는 것은 일정이다. */}
       {!isTodo && (
-        <div className="mt-1 flex justify-end gap-0.5">
-          {/* 구글 캘린더는 늘 보이게 둔다. 마우스를 올려야 나타나면 있는 줄도 모른다.
-              삭제와 달리 잘못 눌러도 되돌릴 수 있는 조작이라 상시 노출해도 된다. */}
+        <div className="mt-2 flex items-center gap-1">
           {mode === 'calendar' && (
             <button
               type="button"
               onClick={handleAddToGoogle}
-              className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
+              className={`flex min-h-[28px] flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 text-[12px] font-semibold ${
                 addedToGoogle
-                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                  : 'bg-[#E8F0FE] text-[#1A73E8] hover:bg-[#D2E3FC]'
+                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  : 'bg-[#1A73E8] text-white hover:bg-[#1557B0]'
               }`}
-              title={
-                addedToGoogle
-                  ? '구글 캘린더에 추가됨 · 다시 열기'
-                  : '구글 캘린더에 추가 (로그인돼 있으면 저장 화면이 바로 열립니다)'
-              }
+              title={addedToGoogle ? '구글 캘린더에 추가됨 · 다시 열기' : '구글 캘린더에 추가'}
               aria-label={`${item.title} 구글 캘린더에 추가`}
             >
-              <CalendarPlus size={11} />
-              {addedToGoogle ? '추가됨' : '구글 캘린더'}
+              <CalendarPlus size={14} />
+              {addedToGoogle ? '구글 캘린더에 추가됨' : '구글 캘린더에 추가'}
             </button>
           )}
           <button
             type="button"
             onClick={() => onDeleteEvent?.(item.id)}
-            className="rounded p-0.5 text-[#C9C5BD] opacity-0 transition-opacity hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
+            className="rounded p-1 text-[#C9C5BD] opacity-0 transition-opacity hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
             title="이 일정 삭제"
             aria-label={`${item.title} 삭제`}
           >
-            <Trash2 size={12} />
+            <Trash2 size={14} />
           </button>
         </div>
       )}
@@ -264,6 +251,7 @@ export default function EventList({
   onOpenSource,
   onApproveEvent,
   onAddToGoogleCalendar,
+  onToggleTodo,
   onToggleStar,
   onReorder,
   mode = 'calendar', // 'calendar' | 'review'
@@ -331,6 +319,7 @@ export default function EventList({
       onOpenSource={onOpenSource}
       onApproveEvent={onApproveEvent}
       onAddToGoogleCalendar={onAddToGoogleCalendar}
+      onToggleTodo={onToggleTodo}
       onToggleStar={onToggleStar}
     />
   );

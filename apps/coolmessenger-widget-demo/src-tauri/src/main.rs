@@ -15,7 +15,6 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
-use tauri_plugin_opener::OpenerExt;
 
 const WIDGET: &str = "widget";
 /// 「캘린더 크게 보기」 창. 위젯과 별개로 뜬다.
@@ -205,24 +204,6 @@ fn exit_if_nothing_visible(app: &AppHandle, just_destroyed: Option<&str>) {
     }
 }
 
-/// 링크를 기본 브라우저로 연다 (구글 캘린더 등).
-///
-/// 화면에서 `window.open` 을 쓰면 **설치본에서는 아무 일도 일어나지 않는다.** 위젯이 도는
-/// WebView2 는 새 창 요청을 그냥 삼킨다 — 브라우저에서 시험할 때는 멀쩡해 보여서 놓치기
-/// 쉽다. 바깥 주소는 운영체제에 넘겨 기본 브라우저가 열게 한다.
-///
-/// http·https 만 연다. 화면이 넘긴 문자열을 그대로 셸에 주면 `file:` 이나 다른 스킴으로
-/// 엉뚱한 프로그램이 실행될 수 있다.
-#[tauri::command]
-fn open_external(app: AppHandle, url: String) -> Result<(), String> {
-    if !(url.starts_with("https://") || url.starts_with("http://")) {
-        return Err("http·https 주소만 열 수 있습니다.".into());
-    }
-    app.opener()
-        .open_url(url, None::<&str>)
-        .map_err(|e| e.to_string())
-}
-
 /// 마감이 다가온 일정을 윈도우 알림으로 띄운다 (화면 오른쪽 아래).
 ///
 /// 앱 안의 토스트가 아니라 **운영체제 알림**이다. 위젯을 최소화해 두었거나 다른 창에
@@ -404,6 +385,49 @@ fn messenger_download_blocking(
     }
 }
 
+/// 시스템 기본 브라우저로 URL을 연다.
+///
+/// 위젯 웹뷰에서 window.open 을 쓰면 설치본에서는 아무 창도 안 뜨거나
+/// 빈 웹뷰만 뜬다. 구글 캘린더 등록은 교사의 브라우저에서 이뤄져야 한다.
+/// https 만 받고, 구글 캘린더 주소만 연다.
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    let ok = url.starts_with("https://calendar.google.com/")
+        || url.starts_with("https://www.google.com/calendar");
+    if !ok {
+        return Err("허용되지 않은 주소입니다.".into());
+    }
+
+    #[cfg(windows)]
+    {
+        // cmd start 는 URL 의 & 를 명령 구분자로 본다. 따옴표로 감싼다.
+        let quoted = format!("start \"\" \"{url}\"");
+        std::process::Command::new("cmd")
+            .args(["/C", &quoted])
+            .spawn()
+            .map_err(|e| format!("브라우저를 열지 못했습니다: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("브라우저를 열지 못했습니다: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("브라우저를 열지 못했습니다: {e}"))?;
+        Ok(())
+    }
+}
+
 /// 지금 부팅 자동 실행이 켜져 있는가.
 #[tauri::command]
 fn autostart_status(app: AppHandle) -> bool {
@@ -432,8 +456,6 @@ fn main() {
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         // 마감 알림을 윈도우 알림 센터로 띄운다.
         .plugin(tauri_plugin_notification::init())
-        // 바깥 링크(구글 캘린더)를 기본 브라우저로 넘긴다.
-        .plugin(tauri_plugin_opener::init())
         // 창이 닫힐 때마다 «보이는 창이 남았는가»를 본다 (exit_if_nothing_visible).
         //
         // 캘린더의 X 는 «없애기»가 아니라 «접기»다. 없애 버리면 다시 열 때 웹뷰를 새로
@@ -459,9 +481,9 @@ fn main() {
             set_widget_visible,
             set_calendar_open,
             notify_deadline,
-            open_external,
             read_latest_export,
-            run_messenger_download
+            run_messenger_download,
+            open_url
         ])
         .setup(|app| {
             place_widget(app.handle());

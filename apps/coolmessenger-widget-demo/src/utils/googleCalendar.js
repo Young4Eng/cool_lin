@@ -13,7 +13,7 @@
 
 // 확장자를 적는다 — 이 파일은 node --test 가 그대로 읽는데, Node 의 ESM 해석기는
 // 확장자를 붙여 주지 않는다 (Vite 는 붙여 준다).
-import { openExternal } from '../services/desktopShell.js';
+import { openExternalUrl } from '../services/desktopShell.js';
 
 const TEMPLATE_BASE = 'https://calendar.google.com/calendar/render';
 export const GOOGLE_CALENDAR_TZ = 'Asia/Seoul';
@@ -53,20 +53,10 @@ export function markEventAdded(event, at = new Date()) {
   return { ...event, googleCalendarAddedAt: at.toISOString() };
 }
 
-export function openGoogleCalendar(event, open = defaultOpen) {
+export async function openGoogleCalendar(event) {
   const url = buildGoogleCalendarUrl(event);
-  open(url);
+  await openExternalUrl(url);
   return { url, added: markEventAdded(event) };
-}
-
-/**
- * 설치본에서는 `window.open` 이 통하지 않는다 — WebView2 가 새 창 요청을 삼켜서
- * 아무 일도 일어나지 않는다. 셸을 거쳐 기본 브라우저로 넘긴다.
- * 열기 동작을 인자로 받는 것은 테스트에서 실제 창을 띄우지 않기 위해서다.
- */
-function defaultOpen(url) {
-  if (typeof window === 'undefined') return;
-  openExternal(url);
 }
 
 function buildDetails(event) {

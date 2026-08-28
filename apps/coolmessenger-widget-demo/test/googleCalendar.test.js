@@ -4,7 +4,6 @@ import {
   buildGoogleCalendarUrl,
   buildDatesParam,
   markEventAdded,
-  openGoogleCalendar,
 } from '../src/utils/googleCalendar.js';
 
 const SAMPLE = {
@@ -70,14 +69,4 @@ test('omits empty optional fields', () => {
   const url = new URL(buildGoogleCalendarUrl({ title: '회의', date: '2026-08-31', time: '16:00' }));
   assert.equal(url.searchParams.get('location'), null);
   assert.equal(url.searchParams.get('details'), null);
-});
-
-test('openGoogleCalendar 는 열기 동작을 주입받는다 (window.open 에 기대지 않는다)', () => {
-  // 설치본의 WebView2 는 window.open 을 삼킨다. 실제 열기는 셸이 맡아야 한다.
-  const opened = [];
-  const { url, added } = openGoogleCalendar(SAMPLE, (u) => opened.push(u));
-  assert.equal(opened.length, 1);
-  assert.equal(opened[0], url);
-  assert.match(url, /^https:\/\/calendar\.google\.com\//);
-  assert.ok(added.googleCalendarAddedAt);
 });

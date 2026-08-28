@@ -14,7 +14,6 @@ serde = { version = "1", features = ["derive"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-notification = "2"
-tauri-plugin-opener = "2.5.4"
 
 [target.'cfg(windows)'.dependencies]
 # 등록된 자동 실행 명령줄을 «읽기» 위해서만 쓴다. 쓰기는 autostart 플러그인이 한다.

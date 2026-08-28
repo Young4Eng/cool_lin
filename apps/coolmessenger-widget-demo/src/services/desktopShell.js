@@ -7,6 +7,24 @@ export function inDesktopShell() {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+/**
+ * 시스템 브라우저로 URL을 연다.
+ *
+ * 설치본(Tauri)에서 window.open 은 막히거나 빈 웹뷰만 뜬다. 그래서 셸이
+ * 기본 브라우저를 연다. 브라우저 미리보기에서는 window.open 으로 연다.
+ */
+export async function openExternalUrl(url) {
+  if (typeof url !== 'string' || !url.startsWith('https://')) {
+    throw new Error('https URL only');
+  }
+  if (inDesktopShell()) {
+    await invoke('open_url', { url });
+    return;
+  }
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!win) throw new Error('브라우저를 열지 못했습니다');
+}
+
 async function invoke(cmd, args) {
   const { invoke: call } = await import('@tauri-apps/api/core');
   return call(cmd, args);
@@ -96,20 +114,6 @@ export async function closeCalendarWindow() {
     // 캘린더 창이 스스로 접기를 누른 경우 — 자기 자신을 닫는다.
     window.close();
   }
-}
-
-/**
- * 바깥 주소를 기본 브라우저로 연다 (구글 캘린더 등).
- *
- * 설치본에서 `window.open` 은 아무 일도 하지 않는다 — WebView2 가 새 창 요청을 삼킨다.
- * 브라우저에서 시험하면 멀쩡해 보여 놓치기 쉬운 함정이다. 셸이 있으면 운영체제에 넘긴다.
- */
-export function openExternal(url) {
-  if (inDesktopShell()) {
-    invoke('open_external', { url }).catch(() => {});
-    return;
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 /**
