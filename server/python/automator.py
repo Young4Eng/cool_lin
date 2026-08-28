@@ -34,6 +34,7 @@ VK_TAB = 0x09
 VK_CONTROL = 0x11
 VK_A = 0x41
 VK_HOME = 0x24
+VK_DELETE = 0x2E
 HWND_TOPMOST = -1
 HWND_NOTOPMOST = -2
 SWP_NOSIZE = 0x0001
@@ -354,16 +355,18 @@ def modal_visible(hwnd: int) -> bool:
     return m is not None
 
 
-def type_ymd(d: date) -> None:
+def type_spin(digits: str) -> None:
     tap(VK_HOME)
-    time.sleep(0.05)
-    type_text(f"{d.year:04d}")
-    tap(VK_TAB)
-    time.sleep(0.04)
-    type_text(f"{d.month:02d}")
-    tap(VK_TAB)
-    time.sleep(0.04)
-    type_text(f"{d.day:02d}")
+    time.sleep(0.03)
+    for _ in range(len(digits) + 2):
+        tap(VK_DELETE)
+        time.sleep(0.01)
+    type_text(digits)
+
+
+def type_ymd(d: date) -> None:
+    # Mock accepts compact digits only, e.g. 20260827. No hyphens, no field clicks.
+    type_text(f"{d.year:04d}{d.month:02d}{d.day:02d}")
 
 
 def click_download_label(hwnd: int, log: Callable[[str], None]) -> None:
@@ -389,19 +392,28 @@ def click_download_label(hwnd: int, log: Callable[[str], None]) -> None:
 
 def fill_dates_and_download(hwnd: int, log: Callable[[str], None]) -> None:
     force_foreground(hwnd)
-    l, t, r, b = _rect(hwnd)
-    w, h = r - l, b - t
     today = date.today()
     yest = today - timedelta(days=1)
-    cx, cy = l + w // 2, t + h // 2
-    # HTML date input: year / month / day 칸이 따로라 하이픈을 넣으면 깨진다
-    click(cx - 90, cy - 38)
+    yest_s = f"{yest.year:04d}{yest.month:02d}{yest.day:02d}"
+    l, top, r, btm = _rect(hwnd)
+    w, h = r - l, btm - top
+    tpls = load_templates("folderchg")
+    img, sl, st = screenshot_region(l, top, r, btm)
+    bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    fc = match_in(bgr, tpls, 0.15, 0.9, 0.1, 0.95, thresh=0.52) if tpls else None
+    if fc:
+        # 폴더변경 왼쪽 위 = 시작 날짜 칸 (달력 아이콘이 아니라 숫자 쪽)
+        sx, sy = sl + fc[0] - 280, st + fc[1] - 58
+        log(f"시작 날짜 클릭 {sx},{sy}")
+    else:
+        sx, sy = l + int(w * 0.32), top + int(h * 0.34)
+        log("폴더변경 없음, 비율로 시작 날짜 클릭")
+    click(int(sx), int(sy))
     time.sleep(0.18)
+    tap(VK_HOME)
+    time.sleep(0.05)
     type_ymd(yest)
-    tap(VK_TAB)
-    time.sleep(0.08)
-    type_ymd(today)
-    log(f"기간 {yest.isoformat()} ~ {today.isoformat()}")
+    log(f"시작 날짜 {yest_s} (끝은 오늘 유지)")
     time.sleep(0.2)
     click_download_label(hwnd, log)
 

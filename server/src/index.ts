@@ -41,6 +41,7 @@ function runIngest(mode: "ingest" | "latest"): Promise<Record<string, unknown>> 
     const child = spawn(cmd, [...prefix, "ingest.py", mode], {
       cwd: pythonDir,
       windowsHide: true,
+      env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" },
     });
     let stdout = "";
     let stderr = "";

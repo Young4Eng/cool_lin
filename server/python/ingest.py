@@ -7,6 +7,10 @@ import traceback
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 sys.path.insert(0, str(HERE))
 
 
@@ -31,7 +35,7 @@ def main() -> None:
                             "error": "바탕화면에서 coolmsg_*.xls 를 찾지 못했습니다.",
                             "steps": steps,
                         },
-                        ensure_ascii=False,
+                        ensure_ascii=True,
                     )
                 )
                 raise SystemExit(1)
@@ -44,7 +48,7 @@ def main() -> None:
                         "steps": [f"최근 파일 {path.name}"],
                         **parsed,
                     },
-                    ensure_ascii=False,
+                    ensure_ascii=True,
                 )
             )
             return
@@ -54,7 +58,7 @@ def main() -> None:
 
         result = run(progress)
         parsed = parse_xls(result["file"])
-        print(json.dumps({"ok": True, "steps": steps, **result, **parsed}, ensure_ascii=False))
+        print(json.dumps({"ok": True, "steps": steps, **result, **parsed}, ensure_ascii=True))
     except SystemExit:
         raise
     except Exception as e:
@@ -66,7 +70,7 @@ def main() -> None:
                     "steps": steps,
                     "trace": traceback.format_exc(),
                 },
-                ensure_ascii=False,
+                ensure_ascii=True,
             )
         )
         raise SystemExit(1)
