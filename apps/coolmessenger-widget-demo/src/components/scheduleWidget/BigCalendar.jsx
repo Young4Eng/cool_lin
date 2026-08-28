@@ -80,6 +80,8 @@ export default function BigCalendar({
         title: t.text,
         date: t.dueDate,
         completed: t.completed,
+        // 별표는 할 일에도 붙는다. 여기서 빠뜨리면 달력에서만 강조가 사라진다.
+        starred: t.starred,
         category: '업무',
       })),
     ];
@@ -207,14 +209,26 @@ export default function BigCalendar({
                     className={`flex items-center gap-1 truncate rounded px-1 py-[1.5px] text-left text-[10px] leading-tight hover:bg-[#E5E4E0] ${
                       ev.completed
                         ? 'bg-[#F8F8F5] text-[#A8A29B] line-through'
-                        : 'bg-[#F0EFEB] text-[#3A322D]'
+                        : ev.starred
+                          ? 'bg-[#FEF3C7] font-semibold text-[#B42318]'
+                          : 'bg-[#F0EFEB] text-[#3A322D]'
                     }`}
                   >
                     <span
                       className="h-[5px] w-[5px] shrink-0 rounded-full"
-                      style={{ backgroundColor: ev.completed ? '#C9C5BD' : dotColor(ev) }}
+                      style={{
+                        backgroundColor: ev.completed
+                          ? '#C9C5BD'
+                          : ev.starred
+                            ? '#B42318'
+                            : dotColor(ev),
+                      }}
                     />
-                    <span className="truncate">{ev.title}</span>
+                    {/* 별표로 중요 표시한 일정은 빨간 글씨에 노란 음영을 깔아 한눈에 띄게 한다.
+                        칸이 좁아 별 아이콘을 넣으면 제목이 그만큼 잘리므로 색으로만 알린다. */}
+                    <span className={`truncate ${ev.starred && !ev.completed ? 'bg-[#FDE68A] px-0.5' : ''}`}>
+                      {ev.title}
+                    </span>
                   </button>
                 ))}
                 {extra > 0 && (
