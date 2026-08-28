@@ -1,12 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Bot, CheckCircle2, AlertCircle, RefreshCw, Cpu, Server } from 'lucide-react';
+import { Settings, Bot, CheckCircle2, AlertCircle, RefreshCw, Cpu, Server, MonitorCog } from 'lucide-react';
 import { getAiSettings, saveAiSettings, testOllamaConnection } from '../../services/localAiService';
+import { isServerReachable } from '../../services/realIngestClient';
 
 export default function AiSettingsModal({ isOpen, onClose }) {
   const [settings, setSettings] = useState(getAiSettings());
   const [testStatus, setTestStatus] = useState(null); // { ok: boolean, message: string }
   const [isTesting, setIsTesting] = useState(false);
   const [availableModels, setAvailableModels] = useState([]);
+  const [serverTestStatus, setServerTestStatus] = useState(null);
+  const [isTestingServer, setIsTestingServer] = useState(false);
+
+  const handleTestServer = async () => {
+    setIsTestingServer(true);
+    setServerTestStatus(null);
+    const ok = await isServerReachable();
+    setIsTestingServer(false);
+    setServerTestStatus(
+      ok
+        ? { ok: true, message: '연결 성공! 실제 쿨메신저 다운로드 서버가 응답합니다.' }
+        : { ok: false, message: '서버에 연결할 수 없습니다. server/ (npm run dev:server)가 켜져 있는지 확인하세요.' }
+    );
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -117,6 +132,45 @@ export default function AiSettingsModal({ isOpen, onClose }) {
             </div>
           </div>
 
+          {/* Real CoolMessenger download+engine server */}
+          <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <div className="flex items-center justify-between">
+              <label className="font-semibold text-slate-800 flex items-center gap-1.5">
+                <MonitorCog size={13} className="text-cool-600" />
+                실제 쿨메신저 연동 서버 URL
+              </label>
+              <button
+                type="button"
+                onClick={handleTestServer}
+                disabled={isTestingServer}
+                className="flex items-center gap-1 bg-white hover:bg-slate-100 border border-slate-300 px-2 py-0.5 rounded text-[11px] font-medium text-slate-700 disabled:opacity-50"
+              >
+                <RefreshCw size={11} className={isTestingServer ? 'animate-spin' : ''} />
+                <span>연결 테스트</span>
+              </button>
+            </div>
+            <p className="text-[10.5px] text-slate-500 -mt-1">
+              쿨메신저 창에서 .xls를 자동으로 내려받아 규칙 엔진으로 일정을 추출하는 server/ 주소입니다.
+            </p>
+            <input
+              type="text"
+              value={settings.serverEndpoint}
+              onChange={(e) => setSettings(prev => ({ ...prev, serverEndpoint: e.target.value }))}
+              placeholder="http://localhost:4000"
+              className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 outline-none font-mono text-[11.5px]"
+            />
+            {serverTestStatus && (
+              <div
+                className={`p-2 rounded flex items-start gap-1.5 text-[11px] ${
+                  serverTestStatus.ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
+                }`}
+              >
+                {serverTestStatus.ok ? <CheckCircle2 size={14} className="text-green-600 shrink-0 mt-0.5" /> : <AlertCircle size={14} className="text-amber-600 shrink-0 mt-0.5" />}
+                <span className="leading-snug">{serverTestStatus.message}</span>
+              </div>
+            )}
+          </div>
+
           {/* Ollama Endpoint */}
           <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
             <div className="flex items-center justify-between">
@@ -179,17 +233,56 @@ export default function AiSettingsModal({ isOpen, onClose }) {
           </div>
 
           {/* Automation Switches */}
-          <div className="space-y-2 pt-1">
+          <div className="space-y-1 pt-1">
             <label className="flex items-center justify-between p-2 rounded hover:bg-slate-50 cursor-pointer">
               <div>
                 <span className="font-semibold block text-slate-800">쪽지 수신 시 일정 자동 감지</span>
-                <span className="text-[10.5px] text-slate-500">본문 속 마감일/회의 일정을 파악하여 캘린더에 연동 대기</span>
+                <span className="text-[10.5px] text-slate-500">본문 속 마감일/회의 일정을 파악하여 캘린더에 연동 대기 (메신저가 쌓이지 않도록 자동 처리)</span>
               </div>
               <input
                 type="checkbox"
                 checked={settings.autoExtractSchedule}
                 onChange={(e) => setSettings(prev => ({ ...prev, autoExtractSchedule: e.target.checked }))}
-                className="w-4 h-4 text-cool-600 rounded"
+                className="w-4 h-4 text-cool-600 rounded shrink-0 ml-2"
+              />
+            </label>
+
+            <label className="flex items-center justify-between p-2 rounded hover:bg-slate-50 cursor-pointer">
+              <div>
+                <span className="font-semibold block text-slate-800">새 쪽지 알림</span>
+                <span className="text-[10.5px] text-slate-500">새 쪽지가 도착하면 화면에 알림을 표시합니다</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.autoNotifyNewMessage}
+                onChange={(e) => setSettings(prev => ({ ...prev, autoNotifyNewMessage: e.target.checked }))}
+                className="w-4 h-4 text-cool-600 rounded shrink-0 ml-2"
+              />
+            </label>
+
+            <label className="flex items-center justify-between p-2 rounded hover:bg-slate-50 cursor-pointer">
+              <div>
+                <span className="font-semibold block text-slate-800">마감 전 알림</span>
+                <span className="text-[10.5px] text-slate-500">
+                  마감{' '}
+                  <input
+                    type="number"
+                    min={5}
+                    step={5}
+                    disabled={!settings.deadlineReminderEnabled}
+                    value={settings.deadlineReminderMinutes}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setSettings(prev => ({ ...prev, deadlineReminderMinutes: Math.max(5, parseInt(e.target.value, 10) || 5) }))}
+                    className="w-12 border border-slate-300 rounded px-1 text-center disabled:opacity-40"
+                  />
+                  {' '}분 전에 알려줍니다
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.deadlineReminderEnabled}
+                onChange={(e) => setSettings(prev => ({ ...prev, deadlineReminderEnabled: e.target.checked }))}
+                className="w-4 h-4 text-cool-600 rounded shrink-0 ml-2"
               />
             </label>
           </div>

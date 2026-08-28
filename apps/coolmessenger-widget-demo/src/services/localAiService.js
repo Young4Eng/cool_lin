@@ -1,5 +1,10 @@
 // Local AI Engine & Schedule Extraction Service
 // Supports both Browser On-Device Rule-Based NLP & External Local LLMs (Ollama / LM Studio / LocalAI)
+//
+// Schedule extraction is delegated to packages/schedule-engine via
+// scheduleEngineAdapter.js — see that file and ENGINE.md for the
+// Candidate → widget-event mapping. Everything below this (summary,
+// smart-reply, Ollama connectivity) stays local/regex-based.
 
 import { extractBestEventFromMessage, extractEventsFromMessage } from './scheduleEngineAdapter';
 
@@ -10,8 +15,11 @@ export const getDefaultAiSettings = () => ({
   ollamaEndpoint: 'http://localhost:11434',
   model: 'llama3:latest',
   temperature: 0.3,
-  autoExtractSchedule: true,
-  autoNotifyNewMessage: true,
+  autoExtractSchedule: true,      // 쪽지 수신 시 자동으로 일정 후보 추출
+  autoNotifyNewMessage: true,     // 새 쪽지 도착 시 알림 토스트
+  serverEndpoint: 'http://localhost:4000', // 실제 쿨메신저 다운로드+엔진 서버 (server/)
+  deadlineReminderEnabled: true,  // 마감 전 알림 서비스
+  deadlineReminderMinutes: 60,    // 마감 몇 분 전에 알릴지
 });
 
 export const getAiSettings = () => {

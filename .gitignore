@@ -4,6 +4,8 @@ dist/
 .env.local
 *.log
 .DS_Store
+__pycache__/
+*.pyc
 
 # 실제 쿨메신저 내보내기 원본은 커밋하지 않는다 (PRD 22장)
 coolexcel/

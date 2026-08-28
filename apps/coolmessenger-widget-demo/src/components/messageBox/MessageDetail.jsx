@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { 
-  Sparkles, CalendarPlus, FileText, Reply, Forward, Printer, Trash2, 
-  Paperclip, CheckCircle2, Bot, AlertCircle, Copy
+import {
+  Sparkles, CalendarPlus, FileText, Reply, Forward, Printer, Trash2,
+  Paperclip, CheckCircle2, Bot, AlertCircle, Archive, ArchiveRestore, MailX, Eye
 } from 'lucide-react';
 import { generateAiSummary, generateSmartReply, extractScheduleFromText } from '../../services/localAiService';
+import FilePreviewModal from './FilePreviewModal';
 import confetti from 'canvas-confetti';
 
 export default function MessageDetail({
@@ -12,12 +13,16 @@ export default function MessageDetail({
   onAddEventToSchedule,
   onOpenComposeReply,
   onDeleteMessage,
+  onArchiveMessage,
+  onUnarchiveMessage,
+  onMarkUnread,
 }) {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryText, setSummaryText] = useState(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractedEvent, setExtractedEvent] = useState(null);
   const [registeredSuccess, setRegisteredSuccess] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
 
   if (!message) {
     return (
@@ -34,6 +39,12 @@ export default function MessageDetail({
     setTimeout(() => {
       // 기준 시각은 쪽지를 받은 날이다. 이걸 넘기지 않으면 «모레»를 계산할 수 없다.
       const event = extractScheduleFromText(message.bodyHtml, message.subject, message.timestamp);
+      if (event) {
+        event.sourceMessageId = message.id;
+        // 발신자가 "캘린더 연동"으로 표시해둔 쪽지는 엔진의 신뢰도 판단과
+        // 별개로 사람이 이미 한 번 보증한 것으로 보고 검토함을 건너뛴다.
+        if (message.linkToCalendar) event.reviewed = true;
+      }
       setExtractedEvent(event);
       setIsExtracting(false);
 
@@ -214,13 +225,23 @@ export default function MessageDetail({
                     <span className="font-medium text-slate-800 text-[11.5px]">{att.name}</span>
                     <span className="text-slate-400 text-[10.5px]">({att.size})</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => alert(`[다운로드 완료] ${att.name} 파일이 저장되었습니다.`)}
-                    className="bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-2.5 py-1 rounded text-[11px] font-medium"
-                  >
-                    다운로드
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewFile(att)}
+                      className="flex items-center gap-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-2 py-1 rounded text-[11px] font-medium"
+                      title="다운로드 없이 미리보기"
+                    >
+                      <Eye size={12} /> 미리보기
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => alert(`[다운로드 완료] ${att.name} 파일이 저장되었습니다.`)}
+                      className="bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-2.5 py-1 rounded text-[11px] font-medium"
+                    >
+                      다운로드
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -252,6 +273,39 @@ export default function MessageDetail({
           >
             <Printer size={13} /> 인쇄
           </button>
+          {onMarkUnread && (
+            <button
+              type="button"
+              onClick={() => onMarkUnread(message.id)}
+              className="flex items-center gap-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-2 py-1 rounded text-[11.5px]"
+              title="다시 안 읽음으로 표시"
+            >
+              <MailX size={13} /> 안읽음으로
+            </button>
+          )}
+          {message.folder === 'archived' ? (
+            onUnarchiveMessage && (
+              <button
+                type="button"
+                onClick={() => onUnarchiveMessage(message.id)}
+                className="flex items-center gap-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-2 py-1 rounded text-[11.5px]"
+                title="받은메시지함으로 복원"
+              >
+                <ArchiveRestore size={13} /> 보관 해제
+              </button>
+            )
+          ) : (
+            onArchiveMessage && (
+              <button
+                type="button"
+                onClick={() => onArchiveMessage(message.id)}
+                className="flex items-center gap-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 px-2 py-1 rounded text-[11.5px]"
+                title="보관함으로 이동"
+              >
+                <Archive size={13} /> 보관
+              </button>
+            )
+          )}
         </div>
 
         <button
@@ -262,6 +316,8 @@ export default function MessageDetail({
           <Trash2 size={13} /> 삭제
         </button>
       </div>
+
+      <FilePreviewModal isOpen={!!previewFile} onClose={() => setPreviewFile(null)} file={previewFile} />
     </div>
   );
 }

@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "predev": "node scripts/ensure-engine.mjs",
+    "predev": "node ../../packages/schedule-engine/scripts/ensure-built.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/ensure-engine.mjs",
+    "prebuild": "node ../../packages/schedule-engine/scripts/ensure-built.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

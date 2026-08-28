@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-  HelpCircle, Settings, Box, Calendar, MessageSquare, Save, Palette, 
-  Search, Users, ChevronDown, Sparkles, Send, Bell
+import {
+  HelpCircle, Settings, Calendar, MessageSquare, Save,
+  Search, ChevronDown, Sparkles, Send, AlarmClock, Users2
 } from 'lucide-react';
 import { PenguinIcon, UserStatusIcon } from '../common/Icons';
 import OrgTree from './OrgTree';
@@ -16,6 +16,7 @@ export default function CoolMessengerMain({
   onMaximize,
   onClose,
   unreadCount = 0,
+  events = [],
   onOpenMessageBox,
   onOpenScheduleWidget,
   onOpenAiAssistant,
@@ -23,6 +24,7 @@ export default function CoolMessengerMain({
   onOpenChat,
   onOpenCompose,
   onOpenDownloadModal,
+  onOpenGroupChat,
 }) {
   const [activeTab, setActiveTab] = useState('org'); // 'org' | 'notice' | 'survey' | 'memo' | 'link' | 'schedule' | 'talk' | 'sms'
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,6 +33,13 @@ export default function CoolMessengerMain({
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
 
   if (!isOpen || isMinimized) return null;
+
+  // Soonest upcoming (not-yet-past) deadline, for the inline strip at the
+  // bottom of the messenger window.
+  const nowStr = '2026-08-28';
+  const upcomingDeadline = [...events]
+    .filter(e => e.date >= nowStr && !(e.fromAi && e.autoRegisterEligible === false && !e.reviewed))
+    .sort((a, b) => `${a.date} ${a.time || '00:00'}`.localeCompare(`${b.date} ${b.time || '00:00'}`))[0] || null;
 
   const tabs = [
     { id: 'org', label: '조직도' },
@@ -201,6 +210,16 @@ export default function CoolMessengerMain({
             >
               <Save size={18} />
             </button>
+            {onOpenGroupChat && (
+              <button
+                type="button"
+                onClick={onOpenGroupChat}
+                className="p-1.5 hover:bg-white/20 rounded-md transition-colors text-white"
+                title="여러 명 실시간 그룹 채팅"
+              >
+                <Users2 size={18} />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -294,14 +313,30 @@ export default function CoolMessengerMain({
         </div>
       </div>
 
-      {/* 5. Bottom Banner / Notice Footer */}
-      <div className="bg-[#fdfde8] border-t border-[#f0eebc] px-3 py-1.5 flex items-center justify-between text-[11px] text-[#786c12]">
-        <div className="truncate flex-1 font-medium">
-          <span className="text-[#107040] font-bold mr-1.5">한빛중 연구부</span>
-          <span>9월 창의활동, 이렇게 준비 끝!</span>
+      {/* 5. Upcoming Deadline Strip — 메신저 안에서 바로 마감 확인
+          ("메신저에 달력 연동 + 마감 기한이 표시돼 보이게") */}
+      {upcomingDeadline ? (
+        <button
+          type="button"
+          onClick={onOpenScheduleWidget}
+          className="bg-rose-50 hover:bg-rose-100 border-t border-rose-200 px-3 py-1.5 flex items-center justify-between text-[11px] text-rose-800 transition-colors text-left"
+        >
+          <div className="flex items-center gap-1.5 truncate flex-1">
+            <AlarmClock size={13} className="text-rose-500 shrink-0" />
+            <span className="font-bold shrink-0">다가오는 마감</span>
+            <span className="truncate">{upcomingDeadline.title} · {upcomingDeadline.date} {upcomingDeadline.time}</span>
+          </div>
+          <span className="text-[10px] font-semibold text-rose-500 shrink-0 ml-2">캘린더 열기 ›</span>
+        </button>
+      ) : (
+        <div className="bg-[#fdfde8] border-t border-[#f0eebc] px-3 py-1.5 flex items-center justify-between text-[11px] text-[#786c12]">
+          <div className="truncate flex-1 font-medium">
+            <span className="text-[#107040] font-bold mr-1.5">한빛중 연구부</span>
+            <span>9월 창의활동, 이렇게 준비 끝!</span>
+          </div>
+          <span className="text-[10px] text-slate-400 shrink-0 ml-2">광고 · 모의</span>
         </div>
-        <span className="text-[10px] text-slate-400 shrink-0 ml-2">광고 · 모의</span>
-      </div>
+      )}
     </div>
   );
 }
