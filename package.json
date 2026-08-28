@@ -12,7 +12,10 @@
     "engine:analyze": "npm --prefix packages/schedule-engine run analyze",
     "engine:extract": "npm --prefix packages/schedule-engine run extract",
     "engine:eval": "npm --prefix packages/schedule-engine run eval",
-    "engine:test": "npm --prefix packages/schedule-engine test"
+    "engine:test": "npm --prefix packages/schedule-engine test",
+    "engine:trace": "npm --prefix packages/schedule-engine run trace",
+    "engine:audit": "npm --prefix packages/schedule-engine run audit",
+    "engine:sample": "npm --prefix packages/schedule-engine run sample"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
