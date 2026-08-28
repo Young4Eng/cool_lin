@@ -99,6 +99,30 @@ export async function closeCalendarWindow() {
 }
 
 /**
+ * 마감 알림을 화면 오른쪽 아래(윈도우 알림)로 띄운다.
+ *
+ * 설치본에서는 셸이 운영체제 알림으로 올린다 — 위젯이 가려져 있어도 보여야 한다.
+ * 브라우저에서는 웹 알림으로 대신하고, 권한이 없으면 조용히 넘어간다.
+ */
+export async function showDeadlineNotification(title, body) {
+  if (inDesktopShell()) {
+    try {
+      await invoke('notify_deadline', { title, body });
+    } catch {}
+    return;
+  }
+  try {
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body });
+    } else if (Notification.permission !== 'denied') {
+      const granted = await Notification.requestPermission();
+      if (granted === 'granted') new Notification(title, { body });
+    }
+  } catch {}
+}
+
+/**
  * 쿨메신저 창을 조작하는 동안 위젯을 잠깐 숨긴다.
  *
  * 위젯은 «항상 위»라 그대로 두면 메신저 툴바를 가리고, 버튼을 누른 직후에는 포그라운드도

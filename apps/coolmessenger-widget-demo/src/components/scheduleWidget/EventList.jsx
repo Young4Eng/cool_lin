@@ -1,7 +1,8 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { CalendarPlus, Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp, Star, Check, GripVertical } from 'lucide-react';
+import { CalendarPlus, Clock, MapPin, Trash2, CheckCircle2, ChevronDown, ChevronUp, Star, Check, GripVertical, Paperclip } from 'lucide-react';
 import { eventSummary } from '../../utils/summarizeMessage';
 import { openGoogleCalendar } from '../../utils/googleCalendar';
+import { attachmentNotice } from '../../utils/attachmentExpiry';
 import { pinnedSorted, pinOrderBetween, splitByDone } from '../../utils/listOrdering';
 import { useDragReorder } from '../../utils/useDragReorder';
 
@@ -61,6 +62,8 @@ function ItemCard({
   const flags = item.ambiguityFlags ?? [];
   const summary = isTodo ? '' : eventSummary(item);
   const addedToGoogle = Boolean(item.googleCalendarAddedAt);
+  // 첨부는 보름 안에 받아야 사라지지 않는다 — 일정 날짜와 따로 센다.
+  const attachment = isTodo ? null : attachmentNotice(item);
 
   const handleAddToGoogle = (e) => {
     e.stopPropagation();
@@ -146,6 +149,21 @@ function ItemCard({
           <span className="flex min-w-0 items-center gap-1">
             <MapPin size={10.5} className="shrink-0 text-[#A8A29B]" />
             <span className="truncate">{item.location}</span>
+          </span>
+        )}
+        {attachment && (
+          <span
+            title={`첨부: ${item.source.attachment} · 받은 날 ${item.source.sentAt}`}
+            className={`flex items-center gap-1 rounded px-1 py-[1px] font-medium ${
+              attachment.tone === 'expired'
+                ? 'bg-[#F8F8F5] text-[#A8A29B] line-through'
+                : attachment.tone === 'urgent'
+                  ? 'bg-rose-50 text-rose-700'
+                  : 'bg-[#F0EFEB] text-[#5B5550]'
+            }`}
+          >
+            <Paperclip size={10} className="shrink-0" />
+            {attachment.text}
           </span>
         )}
       </div>

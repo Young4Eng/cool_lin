@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, LogicalSize, Manager, PhysicalPosition};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
+use tauri_plugin_notification::NotificationExt;
 
 const WIDGET: &str = "widget";
 /// 「캘린더 크게 보기」 창. 위젯과 별개로 뜬다.
@@ -147,6 +148,16 @@ fn set_calendar_open(app: AppHandle, open: bool) {
     } else {
         let _ = win.hide();
     }
+}
+
+/// 마감이 다가온 일정을 윈도우 알림으로 띄운다 (화면 오른쪽 아래).
+///
+/// 앱 안의 토스트가 아니라 **운영체제 알림**이다. 위젯을 최소화해 두었거나 다른 창에
+/// 가려져 있어도 보여야 하기 때문이다. 무엇을 언제 띄울지(D-3·D-2·D-1·당일, 한 번만)는
+/// 화면 쪽이 정한다 — 여기서는 시키는 대로 띄우기만 한다.
+#[tauri::command]
+fn notify_deadline(app: AppHandle, title: String, body: String) {
+    let _ = app.notification().builder().title(title).body(body).show();
 }
 
 /// 쿨메신저에서 가져오는 동안 위젯을 잠깐 비켜 준다.
@@ -324,11 +335,14 @@ fn main() {
         }))
         // HKCU\...\Run 에 사용자별 항목만 만든다 (기술계획서 7.9).
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        // 마감 알림을 윈도우 알림 센터로 띄운다.
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             autostart_status,
             autostart_set,
             set_widget_visible,
             set_calendar_open,
+            notify_deadline,
             read_latest_export,
             run_messenger_download
         ])

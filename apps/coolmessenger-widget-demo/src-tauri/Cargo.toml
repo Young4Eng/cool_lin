@@ -3,7 +3,7 @@ name = "cool-lin-widget"
 version = "0.1.0"
 description = "교사 일정도우미 — 바탕화면 일정 위젯"
 edition = "2021"
-rust-version = "1.77"
+rust-version = "1.77.2"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -13,6 +13,7 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-notification = "2"
 
 [target.'cfg(windows)'.dependencies]
 # 등록된 자동 실행 명령줄을 «읽기» 위해서만 쓴다. 쓰기는 autostart 플러그인이 한다.

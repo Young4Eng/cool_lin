@@ -12,8 +12,12 @@ import {
 } from '../../services/storageService';
 import { subscribeAiEventAdded } from '../../utils/widgetSync';
 import { ingestOnce } from '../../services/widgetIngest';
-import { ensureAutostartOnFirstRun, inDesktopShell, setAutostart, openCalendarWindow } from '../../services/desktopShell';
+import {
+  ensureAutostartOnFirstRun, inDesktopShell, setAutostart,
+  openCalendarWindow, showDeadlineNotification,
+} from '../../services/desktopShell';
 import { withStarToggled, withPinOrder } from '../../utils/listOrdering';
+import { pickDeadlineAlerts, loadSeen, saveSeen } from '../../utils/deadlineAlerts';
 
 // 바탕화면 일정 위젯 — 설치본에서는 이 창 하나만 뜬다.
 //
@@ -26,6 +30,9 @@ function needsReview(event) {
 
 /** 켜자마자 한 번, 그 뒤로는 10분마다 조용히 다시 읽는다. */
 const AUTO_REFRESH_MS = 10 * 60 * 1000;
+
+/** 마감 알림을 확인하는 주기. 자정을 넘겨 D-day 가 바뀌는 것도 이 주기로 잡힌다. */
+const DEADLINE_CHECK_MS = 60 * 1000;
 
 export default function DesktopCalendarWidget() {
   const [events, setEvents] = useState(loadStoredSchedule);
@@ -178,6 +185,40 @@ export default function DesktopCalendarWidget() {
         return next;
       });
     }
+  }, []);
+
+  // 마감이 다가온 일정·할 일을 윈도우 알림으로 알린다 (D-3 · D-2 · D-1 · 당일).
+  // 검토함에 있는 것은 넣지 않는다 — 아직 «내 일정»이라고 확정하지 않은 것이다.
+  useEffect(() => {
+    const check = () => {
+      const items = [
+        ...loadStoredSchedule()
+          .filter((e) => !needsReview(e))
+          .map((e) => ({ id: e.id, title: e.title, date: e.date, time: e.time, location: e.location })),
+        ...loadStoredTodos().map((t) => ({
+          id: t.id,
+          title: t.text,
+          date: t.dueDate,
+          time: '',
+          location: '',
+          completed: t.completed,
+        })),
+      ];
+
+      const seen = loadSeen();
+      const { alerts } = pickDeadlineAlerts(items, seen);
+      if (alerts.length === 0) return;
+
+      for (const a of alerts) {
+        showDeadlineNotification(a.title, a.body);
+        seen.add(a.key);
+      }
+      saveSeen(seen);
+    };
+
+    check();
+    const t = setInterval(check, DEADLINE_CHECK_MS);
+    return () => clearInterval(t);
   }, []);
 
   const handleToggleAutostart = async () => {
