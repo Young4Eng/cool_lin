@@ -71,7 +71,12 @@ function toDescription(candidate) {
   return lines.join('\n');
 }
 
-function toEvent(candidate) {
+// Exported (not just used internally) so the real-server pipeline
+// (realIngestClient.js -> server's /api/ingest, which already ran
+// runPipeline() server-side and returns raw Candidate[] over HTTP) maps
+// through the exact same Candidate -> widget-event shape as the
+// in-browser message-based path above. One mapping, two sources.
+export function candidateToEvent(candidate) {
   const { date, time } = splitDateTime(candidate);
   if (!date) return null;
 
@@ -132,7 +137,7 @@ export function extractEventsFromMessage(message, options = {}) {
 
   return candidates
     .filter((c) => order[c.confidenceBand] >= floor)
-    .map(toEvent)
+    .map(candidateToEvent)
     .filter(Boolean);
 }
 

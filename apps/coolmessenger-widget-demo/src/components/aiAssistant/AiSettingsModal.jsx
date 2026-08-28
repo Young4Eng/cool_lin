@@ -1,12 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Bot, CheckCircle2, AlertCircle, RefreshCw, Cpu, Server } from 'lucide-react';
+import { Settings, Bot, CheckCircle2, AlertCircle, RefreshCw, Cpu, Server, MonitorCog } from 'lucide-react';
 import { getAiSettings, saveAiSettings, testOllamaConnection } from '../../services/localAiService';
+import { isServerReachable } from '../../services/realIngestClient';
 
 export default function AiSettingsModal({ isOpen, onClose }) {
   const [settings, setSettings] = useState(getAiSettings());
   const [testStatus, setTestStatus] = useState(null); // { ok: boolean, message: string }
   const [isTesting, setIsTesting] = useState(false);
   const [availableModels, setAvailableModels] = useState([]);
+  const [serverTestStatus, setServerTestStatus] = useState(null);
+  const [isTestingServer, setIsTestingServer] = useState(false);
+
+  const handleTestServer = async () => {
+    setIsTestingServer(true);
+    setServerTestStatus(null);
+    const ok = await isServerReachable();
+    setIsTestingServer(false);
+    setServerTestStatus(
+      ok
+        ? { ok: true, message: '연결 성공! 실제 쿨메신저 다운로드 서버가 응답합니다.' }
+        : { ok: false, message: '서버에 연결할 수 없습니다. server/ (npm run dev:server)가 켜져 있는지 확인하세요.' }
+    );
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -115,6 +130,45 @@ export default function AiSettingsModal({ isOpen, onClose }) {
                 </div>
               </label>
             </div>
+          </div>
+
+          {/* Real CoolMessenger download+engine server */}
+          <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+            <div className="flex items-center justify-between">
+              <label className="font-semibold text-slate-800 flex items-center gap-1.5">
+                <MonitorCog size={13} className="text-cool-600" />
+                실제 쿨메신저 연동 서버 URL
+              </label>
+              <button
+                type="button"
+                onClick={handleTestServer}
+                disabled={isTestingServer}
+                className="flex items-center gap-1 bg-white hover:bg-slate-100 border border-slate-300 px-2 py-0.5 rounded text-[11px] font-medium text-slate-700 disabled:opacity-50"
+              >
+                <RefreshCw size={11} className={isTestingServer ? 'animate-spin' : ''} />
+                <span>연결 테스트</span>
+              </button>
+            </div>
+            <p className="text-[10.5px] text-slate-500 -mt-1">
+              쿨메신저 창에서 .xls를 자동으로 내려받아 규칙 엔진으로 일정을 추출하는 server/ 주소입니다.
+            </p>
+            <input
+              type="text"
+              value={settings.serverEndpoint}
+              onChange={(e) => setSettings(prev => ({ ...prev, serverEndpoint: e.target.value }))}
+              placeholder="http://localhost:4000"
+              className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 outline-none font-mono text-[11.5px]"
+            />
+            {serverTestStatus && (
+              <div
+                className={`p-2 rounded flex items-start gap-1.5 text-[11px] ${
+                  serverTestStatus.ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
+                }`}
+              >
+                {serverTestStatus.ok ? <CheckCircle2 size={14} className="text-green-600 shrink-0 mt-0.5" /> : <AlertCircle size={14} className="text-amber-600 shrink-0 mt-0.5" />}
+                <span className="leading-snug">{serverTestStatus.message}</span>
+              </div>
+            )}
           </div>
 
           {/* Ollama Endpoint */}
