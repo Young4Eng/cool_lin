@@ -129,13 +129,16 @@ test("자동등록 단계 — 기본값은 «분명한 일정까지»", () => {
 });
 
 /**
- * `분명한 일정까지`의 문턱이 0인 근거.
+ * `분명한 일정까지`의 문턱이 0.8 인 근거.
  *
- * 안전 조건을 모두 통과한 후보는 점수 구성상 0.72 아래로 내려갈 수 없다. 그래서 문턱에
- * 0.6 같은 값을 따로 두어도 걸러지는 후보가 하나도 없다 — 있으나 마나 한 조건이다.
+ * 안전 조건을 모두 통과한 후보는 점수 구성상 0.72 아래로 내려갈 수 없다. 그 0.72 짜리는
+ * «날짜만 적혀 있고, 내가 할 일이라는 표현도 없고, 대상도 안 적힌» 후보다 — 딱 사람이
+ * 한 번 봐야 하는 것이라, 예전처럼 문턱을 0 으로 두면 그대로 캘린더에 들어갔다.
+ * 일정을 놓치는 쪽이 한 번 더 확인하는 쪽보다 손해가 크므로 검토함으로 보낸다.
+ *
  * 점수 항목의 가중치를 손대면 이 테스트가 먼저 깨진다.
  */
-test("자동등록 단계 — 안전 조건을 통과한 후보는 0.72 아래로 내려가지 않는다", () => {
+test("자동등록 단계 — 가장 낮은 0.72 짜리는 자동 등록하지 않고 검토함으로 보낸다", () => {
   const date: DateMention = {
     text: "9월 2일",
     index: 0,
@@ -173,8 +176,18 @@ test("자동등록 단계 — 안전 조건을 통과한 후보는 0.72 아래�
   );
   assert.equal(worst.confidence, 0.72);
   assert.ok(relatedToUser({ ...bare, event: { label: "협의회", weight: 0.9 } }));
-  assert.ok(worst.confidence > AUTO_REGISTER_THRESHOLD["분명한 일정까지"]);
+  // 안전 조건은 통과하지만 문턱에는 못 미친다 — 사라지지 않고 검토함으로 간다.
+  assert.ok(worst.confidence < AUTO_REGISTER_THRESHOLD["분명한 일정까지"]);
   assert.ok(worst.confidence < AUTO_REGISTER_THRESHOLD["아주 확실한 것만"]);
+
+  // 대상이 분명해지면(전 교직원 0.28) 0.88 이 되어 자동 등록된다.
+  const clear = scoreCandidate(
+    date,
+    { ...bare, event: { label: "협의회", weight: 0.9 }, allStaff: true },
+    civil(2026, 8, 28),
+  );
+  assert.equal(clear.confidence, 0.88);
+  assert.ok(clear.confidence >= AUTO_REGISTER_THRESHOLD["분명한 일정까지"]);
 
   // 행동·행사 표현이 없으면(0.10) 점수는 더 낮지만, 그런 후보는 REFERENCE_NOTICE 라
   // «공식 일정·내 마감이 아님»으로 안전 조건에서 먼저 막힌다.

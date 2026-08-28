@@ -23,7 +23,14 @@ test('itemToEvent maps title, when/due, source_title, fromAi', () => {
   assert.equal(ev.time, '15:00');
   assert.equal(ev.fromAi, true);
   assert.match(ev.description, /회의 안내/);
-  assert.equal(ev.autoRegisterEligible, true);
+});
+
+test('모델이 뽑은 항목은 자동 등록하지 않고 검토함으로 보낸다', () => {
+  // 규칙 엔진을 거치지 않아 대상·변경여부·희망자 표현을 확인한 적이 없다.
+  // 놓치는 것보다 한 번 더 확인하는 편이 낫다.
+  const ev = itemToEvent({ title: '교무회의', when: '2026-08-28 15:00' }, 0);
+  assert.equal(ev.autoRegisterEligible, false);
+  assert.ok(ev.autoRegisterBlockers.length > 0, '왜 검토함에 있는지 알려 줘야 한다');
 });
 
 test('itemToEvent prefers due date over when', () => {

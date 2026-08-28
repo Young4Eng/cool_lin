@@ -82,7 +82,12 @@ export function itemToEvent(item, index = 0) {
     location: '',
     description: lines.join('\n'),
     fromAi: true,
-    autoRegisterEligible: true,
+    // 모델이 뽑은 항목은 규칙 엔진을 거치지 않는다 — 대상이 나인지, 변경·취소 안내인지,
+    // 희망자 대상인지 아무것도 확인하지 않은 채 제목과 날짜만 있는 상태다.
+    // 놓치는 것보다 한 번 더 확인하는 편이 낫기에 전부 검토함으로 보낸다.
+    // 캘린더에 넣을지는 사람이 「캘린더에 반영」을 눌러 정한다.
+    autoRegisterEligible: false,
+    autoRegisterBlockers: ['로컬 AI가 뽑은 항목 — 규칙으로 확인하지 않음'],
     sourceSheet: item.source_sheet || '',
     sourceTitle: item.source_title || '',
   };
