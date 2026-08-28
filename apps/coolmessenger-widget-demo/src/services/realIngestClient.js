@@ -46,12 +46,53 @@ export async function fetchFromLatestDownload() {
   return toResult(data);
 }
 
+// 후보 하나가 «어느 쪽지에서 나왔는지» 되찾는다.
+//
+// 엔진은 일부러 쪽지 원문을 후보에 담지 않는다(개인정보). 대신 `messageSentAt` 과
+// `counterpart` 를 **원문 그대로** 넘겨 주므로, 같은 응답에 들어 있는 시트 행과 맞추면
+// 원문을 찾을 수 있다. 한 사람이 같은 «초»에 두 통을 보내지는 않는다.
+function buildSourceIndex(sheets) {
+  const index = new Map();
+  if (!sheets || typeof sheets !== 'object') return index;
+
+  for (const [sheetName, rows] of Object.entries(sheets)) {
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows) {
+      const sentAt = row['날짜/시간'];
+      const who = row['보낸사람'] ?? row['받은사람'];
+      if (!sentAt || !who) continue;
+      index.set(`${sentAt}|${who}`, {
+        sheet: sheetName,
+        kind: row['구분'] ?? '',
+        from: who,
+        subject: row['제목'] ?? '',
+        sentAt,
+        body: row['내용'] ?? '',
+        attachment: row['첨부파일'] ?? '',
+      });
+    }
+  }
+  return index;
+}
+
 function toResult(data) {
   const candidates = Array.isArray(data.candidates) ? data.candidates : [];
+  const sources = buildSourceIndex(data.sheets);
+
+  const events = candidates
+    .map((candidate) => {
+      const event = candidateToEvent(candidate);
+      if (!event) return null;
+      // 목록에서 더블클릭하면 이 원문을 그대로 띄운다.
+      const source = sources.get(`${candidate.messageSentAt}|${candidate.counterpart}`);
+      return source ? { ...event, source } : event;
+    })
+    .filter(Boolean);
+
   return {
     file: typeof data.file === 'string' ? data.file : null,
     stats: data.extraction?.stats ?? null,
-    events: candidates.map(candidateToEvent).filter(Boolean),
+    events,
   };
 }
 

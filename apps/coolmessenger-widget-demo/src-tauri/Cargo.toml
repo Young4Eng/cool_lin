@@ -1,7 +1,7 @@
 [package]
 name = "cool-lin-widget"
 version = "0.1.0"
-description = "교사 일정도우미 — 바탕화면 일정 위젯 (데모 셸)"
+description = "교사 일정도우미 — 바탕화면 일정 위젯"
 edition = "2021"
 rust-version = "1.77"
 
@@ -10,6 +10,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
 
 [profile.release]
 codegen-units = 1

@@ -1,28 +1,28 @@
-import React, { useEffect, useState } from 'react';
-import { Calendar, CheckSquare, Sparkles, RefreshCw, Radio, ClipboardCheck } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { CalendarDays, CheckSquare, ClipboardCheck, Download, Loader2, Power } from 'lucide-react';
 import MiniCalendar from '../scheduleWidget/MiniCalendar';
 import EventList from '../scheduleWidget/EventList';
 import TodoList from '../scheduleWidget/TodoList';
-import { PenguinIcon } from '../common/Icons';
+import SourceMessageModal from './SourceMessageModal';
 import {
   loadStoredSchedule, saveStoredSchedule,
   loadStoredTodos, saveStoredTodos,
 } from '../../services/storageService';
 import { subscribeAiEventAdded } from '../../utils/widgetSync';
+import { ingestOnce } from '../../services/widgetIngest';
+import { ensureAutostartOnFirstRun, inDesktopShell, setAutostart } from '../../services/desktopShell';
 
-// Same review-eligibility rule as ScheduleWidget.jsx — kept in sync manually
-// since this file renders in a fully separate popup window/bundle.
+// 바탕화면 일정 위젯 — 설치본에서는 이 창 하나만 뜬다.
+//
+// 그래서 «메인 앱이 넣어 준 걸 읽기만» 하던 예전 구조로는 안 된다. 쿨메신저에서
+// 가져오는 일도 이 창이 직접 한다 (services/widgetIngest.js).
+
 function needsReview(event) {
   return event.fromAi && event.autoRegisterEligible === false && !event.reviewed;
 }
 
-// Standalone desktop widget — rendered into its own popup window
-// (widget.html / widget-main.jsx), separate from the main CoolMessenger
-// virtual-desktop window. It reads/writes the SAME localStorage keys as
-// the main app, so any schedule the local AI extracts from a 쪽지 in the
-// main window shows up here automatically (via the `storage` event), and
-// anything the teacher does here (check off a todo, delete an event)
-// flows back to the main app the same way.
+/** 켜자마자 한 번, 그 뒤로는 10분마다 조용히 다시 읽는다. */
+const AUTO_REFRESH_MS = 10 * 60 * 1000;
 
 export default function DesktopCalendarWidget() {
   const [events, setEvents] = useState(loadStoredSchedule);
@@ -30,233 +30,241 @@ export default function DesktopCalendarWidget() {
   const [activeTab, setActiveTab] = useState('calendar');
   const [selectedDate, setSelectedDate] = useState(null);
   const [now, setNow] = useState(new Date());
-  const [lastSyncedAt, setLastSyncedAt] = useState(new Date());
-  const [aiToast, setAiToast] = useState(null);
+  const [sourceEvent, setSourceEvent] = useState(null);
+  const [autostart, setAutostartState] = useState(false);
 
-  // Live clock, widget-style
+  const [ingest, setIngest] = useState({ state: 'idle', message: '' });
+  const runningRef = useRef(false);
+
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000 * 30);
+    const t = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(t);
   }, []);
 
-  // Cross-window sync: main app window <-> this widget window.
-  // The `storage` event fires here automatically whenever the OTHER
-  // same-origin window writes to localStorage (and vice versa) — no
-  // server, no polling needed.
+  // 다른 창이 같은 localStorage 를 고치면 바로 따라간다.
   useEffect(() => {
-    const handleStorage = (e) => {
-      if (e.key === 'cool_schedule_v1') {
-        setEvents(loadStoredSchedule());
-        setLastSyncedAt(new Date());
-      }
-      if (e.key === 'cool_todos_v1') {
-        setTodos(loadStoredTodos());
-        setLastSyncedAt(new Date());
-      }
+    const onStorage = (e) => {
+      if (e.key === 'cool_schedule_v1') setEvents(loadStoredSchedule());
+      if (e.key === 'cool_todos_v1') setTodos(loadStoredTodos());
     };
-    window.addEventListener('storage', handleStorage);
-    // Also re-check on focus, in case events fired while the window was backgrounded
-    const handleFocus = () => {
+    const onFocus = () => {
       setEvents(loadStoredSchedule());
       setTodos(loadStoredTodos());
-      setLastSyncedAt(new Date());
     };
-    window.addEventListener('focus', handleFocus);
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('focus', onFocus);
     return () => {
-      window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', onFocus);
     };
   }, []);
 
-  // Instant "AI just organized a schedule" nudge (separate from the
-  // storage-event sync above, which still runs and keeps data correct
-  // even if this channel is unavailable).
+  useEffect(() => subscribeAiEventAdded(() => setEvents(loadStoredSchedule())), []);
+
+  // 위젯을 켜면 부팅 등록도 함께 켠다 (기술계획서 7.9).
   useEffect(() => {
-    return subscribeAiEventAdded((event) => {
-      setEvents(loadStoredSchedule());
-      setLastSyncedAt(new Date());
-      setAiToast(event);
-      const timer = setTimeout(() => setAiToast(null), 6000);
-      return () => clearTimeout(timer);
-    });
+    let alive = true;
+    ensureAutostartOnFirstRun().then((on) => { if (alive) setAutostartState(on); });
+    return () => { alive = false; };
   }, []);
 
-  const persistEvents = (next) => {
+  const persistEvents = useCallback((next) => {
     setEvents(next);
     saveStoredSchedule(next);
-    setLastSyncedAt(new Date());
-  };
+  }, []);
+
+  const runIngest = useCallback(async (mode) => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    setIngest({
+      state: 'running',
+      message: mode === 'fresh' ? '쿨메신저에서 새로 받는 중' : '새 일정 확인 중',
+    });
+
+    try {
+      const current = loadStoredSchedule();
+      const result = await ingestOnce(current, mode);
+      if (result.added.length > 0 || result.forReview.length > 0) {
+        persistEvents(result.next);
+      }
+      const parts = [];
+      if (result.added.length > 0) parts.push(`일정 ${result.added.length}건 등록`);
+      if (result.forReview.length > 0) parts.push(`검토 ${result.forReview.length}건`);
+      setIngest({
+        state: 'ok',
+        message: parts.length > 0 ? parts.join(' · ') : '새로 추가할 일정이 없습니다',
+      });
+    } catch (err) {
+      setIngest({ state: 'error', message: (err && err.message) || '가져오지 못했습니다' });
+    } finally {
+      runningRef.current = false;
+    }
+  }, [persistEvents]);
+
+  // 켜자마자 한 번 + 10분마다. 화면을 건드리지 않는 latest 만 자동으로 돈다.
+  // 쿨메신저 창을 실제로 조작하는 fresh 는 사람이 누를 때만 한다 — 수업 중에 창이
+  // 저절로 앞으로 튀어나오면 안 된다.
+  useEffect(() => {
+    runIngest('latest');
+    const t = setInterval(() => runIngest('latest'), AUTO_REFRESH_MS);
+    return () => clearInterval(t);
+  }, [runIngest]);
+
   const persistTodos = (next) => {
     setTodos(next);
     saveStoredTodos(next);
-    setLastSyncedAt(new Date());
   };
 
-  const handleDeleteEvent = (id) => persistEvents(events.filter(e => e.id !== id));
-  const handleApproveEvent = (id) =>
-    persistEvents(events.map(e => (e.id === id ? { ...e, reviewed: true } : e)));
-  const handleToggleTodo = (id) =>
-    persistTodos(todos.map(t => (t.id === id ? { ...t, completed: !t.completed } : t)));
-  const handleAddTodo = (newTodo) => persistTodos([newTodo, ...todos]);
-  const handleDeleteTodo = (id) => persistTodos(todos.filter(t => t.id !== id));
-
-  const handleManualRefresh = () => {
-    setEvents(loadStoredSchedule());
-    setTodos(loadStoredTodos());
-    setLastSyncedAt(new Date());
+  const handleToggleAutostart = async () => {
+    const next = !autostart;
+    setAutostartState(await setAutostart(next));
   };
 
-  const timeLabel = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-  const syncedLabel = lastSyncedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const reviewEvents = events.filter(needsReview);
-  const calendarEvents = events.filter(e => !needsReview(e));
+  const calendarEvents = events.filter((e) => !needsReview(e));
+  const openTodos = todos.filter((t) => !t.completed).length;
+  const todayLabel = now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+  const timeLabel = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+  const tabs = [
+    { id: 'calendar', label: '일정', icon: CalendarDays, count: 0 },
+    { id: 'review', label: '검토', icon: ClipboardCheck, count: reviewEvents.length },
+    { id: 'todo', label: '할 일', icon: CheckSquare, count: openTodos },
+  ];
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-slate-100 font-sans text-xs overflow-hidden">
-      {/* Widget "card" — fills the popup window to read as a standalone widget */}
-      <div className="flex-1 flex flex-col min-h-0 bg-white shadow-widget">
-        {/* Header */}
-        <div className="cool-gradient-blue text-white px-3 py-2.5 flex items-center justify-between select-none shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="bg-white/20 p-1.5 rounded-lg backdrop-blur-xs shrink-0">
-              <Calendar size={16} className="text-white" />
-            </div>
-            <div className="min-w-0">
-              <div className="font-bold text-[13px] leading-tight truncate">쿨린 캘린더 위젯</div>
-              <div className="flex items-center gap-1 text-[10px] text-sky-100">
-                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse-slow shrink-0" />
-                <span>쿨메신저 실시간 연동 중</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-[13px] font-bold tabular-nums">{timeLabel}</span>
-            <button
-              type="button"
-              onClick={handleManualRefresh}
-              className="p-1 hover:bg-white/20 rounded text-white"
-              title="지금 새로고침"
-            >
-              <RefreshCw size={13} />
-            </button>
-          </div>
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-white font-sans text-slate-900">
+      <header className="shrink-0 select-none border-b border-slate-200 px-4 pt-3.5 pb-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <h1 className="text-[17px] font-semibold tracking-tight">{todayLabel}</h1>
+          <span className="tabular-nums text-[12px] text-slate-400">{timeLabel}</span>
         </div>
 
-        {/* AI new-event toast */}
-        {aiToast && (
-          <div className="mx-2 mt-2 shrink-0 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg px-2.5 py-2 shadow-md flex items-start gap-2 animate-widget-toast-in">
-            <Sparkles size={14} className="text-amber-300 mt-0.5 shrink-0" />
-            <div className="min-w-0">
-              <div className="font-bold text-[11px]">AI가 새 일정을 정리했습니다</div>
-              <div className="text-[10.5px] text-purple-100 truncate">{aiToast.title}</div>
-            </div>
-          </div>
-        )}
-
-        {/* Tabs */}
-        <div className="bg-slate-100 border-b border-slate-200 px-2 pt-1.5 flex items-center gap-1 text-xs select-none shrink-0">
+        <div className="mt-2 flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setActiveTab('calendar')}
-            className={`px-3 py-1.5 font-bold rounded-t-md transition-colors flex items-center gap-1 ${
-              activeTab === 'calendar'
-                ? 'bg-white text-cool-700 shadow-2xs border-t-2 border-cool-600'
-                : 'text-slate-600 hover:bg-slate-200/60'
-            }`}
+            onClick={() => runIngest('fresh')}
+            disabled={ingest.state === 'running'}
+            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
           >
-            <Calendar size={13} /> 캘린더·일정
+            {ingest.state === 'running'
+              ? <Loader2 size={12} className="animate-spin" />
+              : <Download size={12} />}
+            쿨메신저에서 가져오기
           </button>
+
+          {inDesktopShell() && (
+            <button
+              type="button"
+              onClick={handleToggleAutostart}
+              title={autostart ? '컴퓨터를 켜면 위젯이 자동으로 뜹니다' : '부팅 시 자동 실행이 꺼져 있습니다'}
+              className={`ml-auto flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-[10.5px] font-medium ${
+                autostart ? 'bg-slate-50 text-slate-600' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <Power size={11} />
+              {autostart ? '부팅 시 자동 실행' : '부팅 실행 꺼짐'}
+            </button>
+          )}
+        </div>
+
+        {ingest.message && (
+          <p className={`mt-1.5 text-[10.5px] leading-relaxed ${
+            ingest.state === 'error' ? 'text-rose-600' : 'text-slate-400'
+          }`}>
+            {ingest.message}
+          </p>
+        )}
+      </header>
+
+      <nav className="flex shrink-0 select-none gap-4 border-b border-slate-200 px-4">
+        {tabs.map(({ id, label, icon: Icon, count }) => (
           <button
+            key={id}
             type="button"
-            onClick={() => setActiveTab('review')}
-            className={`relative px-3 py-1.5 font-bold rounded-t-md transition-colors flex items-center gap-1 ${
-              activeTab === 'review'
-                ? 'bg-white text-amber-700 shadow-2xs border-t-2 border-amber-500'
-                : 'text-slate-600 hover:bg-slate-200/60'
+            onClick={() => setActiveTab(id)}
+            className={`-mb-px flex items-center gap-1.5 border-b-2 py-2 text-[12px] transition-colors ${
+              activeTab === id
+                ? 'border-slate-900 font-semibold text-slate-900'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
             }`}
           >
-            <ClipboardCheck size={13} /> 검토함
-            {reviewEvents.length > 0 && (
-              <span className="bg-amber-500 text-white text-[9.5px] font-bold size-3.5 rounded-full flex items-center justify-center">
-                {reviewEvents.length}
+            <Icon size={13} />
+            {label}
+            {count > 0 && (
+              <span className="rounded-full bg-slate-100 px-1.5 text-[10px] font-semibold tabular-nums text-slate-600">
+                {count}
               </span>
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('todo')}
-            className={`px-3 py-1.5 font-bold rounded-t-md transition-colors flex items-center gap-1 ${
-              activeTab === 'todo'
-                ? 'bg-white text-cool-700 shadow-2xs border-t-2 border-cool-600'
-                : 'text-slate-600 hover:bg-slate-200/60'
-            }`}
-          >
-            <CheckSquare size={13} /> 할 일 ({todos.filter(t => !t.completed).length})
-          </button>
-        </div>
+        ))}
+      </nav>
 
-        {/* Body */}
-        <div className="flex-1 flex flex-col min-h-0 p-3 bg-slate-50/40 gap-2.5 overflow-hidden">
-          {activeTab === 'calendar' && (
-            <>
-              <MiniCalendar
-                events={calendarEvents}
-                selectedDate={selectedDate}
-                onSelectDate={(d) => setSelectedDate(d)}
-              />
-              <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex items-center justify-between pb-1.5 text-slate-700">
-                  <span className="font-bold text-[12px]">
-                    {selectedDate ? `${selectedDate} 일정` : '전체 학사/업무 일정'}
-                  </span>
-                </div>
-                <EventList
-                  events={calendarEvents}
-                  selectedDate={selectedDate}
-                  onDeleteEvent={handleDeleteEvent}
-                  mode="calendar"
-                />
-              </div>
-            </>
-          )}
-
-          {activeTab === 'review' && (
-            <div className="flex-1 flex flex-col min-h-0">
-              <div className="pb-1.5 text-[11px] text-slate-500">
-                로컬 AI가 확신하지 못했던 일정입니다. 확인 후 반영해 주세요.
+      <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-3 py-3">
+        {activeTab === 'calendar' && (
+          <>
+            <MiniCalendar
+              events={calendarEvents}
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+            />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="flex items-baseline justify-between px-0.5 pb-1.5">
+                <h2 className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                  {selectedDate ? selectedDate : '다가오는 일정'}
+                </h2>
+                {selectedDate && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(null)}
+                    className="text-[10.5px] text-slate-400 hover:text-slate-700"
+                  >
+                    전체 보기
+                  </button>
+                )}
               </div>
               <EventList
-                events={reviewEvents}
-                selectedDate={null}
-                onDeleteEvent={handleDeleteEvent}
-                onApproveEvent={handleApproveEvent}
-                mode="review"
+                events={calendarEvents}
+                selectedDate={selectedDate}
+                onDeleteEvent={(id) => persistEvents(events.filter((e) => e.id !== id))}
+                onOpenSource={setSourceEvent}
+                mode="calendar"
               />
             </div>
-          )}
+          </>
+        )}
 
-          {activeTab === 'todo' && (
-            <TodoList
-              todos={todos}
-              onToggleTodo={handleToggleTodo}
-              onAddTodo={handleAddTodo}
-              onDeleteTodo={handleDeleteTodo}
+        {activeTab === 'review' && (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <p className="px-0.5 pb-2 text-[11px] leading-relaxed text-slate-500">
+              규칙이 확신하지 못한 일정입니다. 확인하면 캘린더로 옮깁니다.
+            </p>
+            <EventList
+              events={reviewEvents}
+              selectedDate={null}
+              onDeleteEvent={(id) => persistEvents(events.filter((e) => e.id !== id))}
+              onOpenSource={setSourceEvent}
+              onApproveEvent={(id) =>
+                persistEvents(events.map((e) => (e.id === id ? { ...e, reviewed: true } : e)))
+              }
+              mode="review"
             />
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Footer */}
-        <div className="bg-slate-100 border-t border-slate-200 px-3 py-1.5 flex items-center justify-between text-[10px] text-slate-500 select-none shrink-0">
-          <div className="flex items-center gap-1">
-            <PenguinIcon size={11} />
-            <span>쿨린 로컬 AI 연동</span>
-          </div>
-          <div className="flex items-center gap-1 text-slate-400">
-            <Radio size={10} />
-            <span>마지막 동기화 {syncedLabel}</span>
-          </div>
-        </div>
-      </div>
+        {activeTab === 'todo' && (
+          <TodoList
+            todos={todos}
+            onToggleTodo={(id) => persistTodos(todos.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)))}
+            onAddTodo={(t) => persistTodos([t, ...todos])}
+            onDeleteTodo={(id) => persistTodos(todos.filter((t) => t.id !== id))}
+          />
+        )}
+      </main>
+
+      {sourceEvent && (
+        <SourceMessageModal event={sourceEvent} onClose={() => setSourceEvent(null)} />
+      )}
     </div>
   );
 }
