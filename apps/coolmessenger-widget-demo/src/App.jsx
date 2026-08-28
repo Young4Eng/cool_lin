@@ -268,6 +268,10 @@ export default function App() {
     setEvents(prev => prev.filter(e => e.id !== eventId));
   };
 
+  const handleAddToGoogleCalendar = (added) => {
+    setEvents(prev => prev.map(e => (e.id === added.id ? added : e)));
+  };
+
   // AI가 확신하지 못해 검토함에 있던 일정을 사람이 확인 후 캘린더에 반영
   const handleApproveEvent = (eventId) => {
     setEvents(prev => prev.map(e => (e.id === eventId ? { ...e, reviewed: true } : e)));
@@ -523,6 +527,7 @@ export default function App() {
         onAddEvent={handleAddEvent}
         onDeleteEvent={handleDeleteEvent}
         onApproveEvent={handleApproveEvent}
+        onAddToGoogleCalendar={handleAddToGoogleCalendar}
         onToggleTodo={handleToggleTodo}
         onAddTodo={handleAddTodo}
         onDeleteTodo={handleDeleteTodo}
