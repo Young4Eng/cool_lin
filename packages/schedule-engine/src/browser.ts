@@ -13,8 +13,8 @@
  */
 import { band, classifySentence, type UserRole } from "./classify/classify.js";
 import { diffDays, startOfDay, type Civil } from "./dates/civil.js";
-import { extractDates, sendDayRequestMention, type PeriodTable } from "./dates/resolve.js";
-import { ACTION_TERMS, REQUEST_ENDINGS } from "./classify/lexicon.js";
+import { type PeriodTable } from "./dates/resolve.js";
+import { resolveSentenceDates } from "./dates/requestDates.js";
 import { parseSentAt } from "./dates/sentAt.js";
 import {
   ambiguityFlagsFor,
@@ -126,19 +126,13 @@ export function extractFromMessage(
   const candidates: Candidate[] = [];
   const seen = new Set<string>();
 
-  for (const sentence of splitSentences(sensitive.masked)) {
-    let dates = extractDates(sentence.text, { sentAt, periodTable });
-
-    // 날짜가 없어도 «나에게 시키는» 문장이면 발송일 마감으로 잡는다 (pipeline.ts 와 같은 규칙).
-    if (dates.length === 0) {
-      const isRequest =
-        REQUEST_ENDINGS.test(sentence.text) && ACTION_TERMS.some((a) => a.term.test(sentence.text));
-      if (!isRequest) continue;
-      dates = [sendDayRequestMention(sentAt)];
-    }
+  const sentences = splitSentences(sensitive.masked);
+  for (const { index, dates, boundSource } of resolveSentenceDates(sentences, { sentAt, periodTable })) {
+    const sentence = sentences[index]!;
+    const classifyText = boundSource ? `${sentence.text} ${boundSource}` : sentence.text;
 
     const verdict = classifySentence({
-      sentence: sentence.text,
+      sentence: classifyText,
       body: sensitive.masked,
       dates,
       sentAt,
