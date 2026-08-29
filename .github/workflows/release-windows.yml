@@ -21,15 +21,22 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      # 20 이 아니라 24 다. 시험 스크립트가 `test/*.test.ts` 글롭을 쓰는데, 그 글롭을
+      # 푸는 것은 셸이 아니라 node 의 테스트 러너이고 그 기능은 21 이후에 들어왔다.
+      # 20 으로 돌리면 파일을 못 찾아 시험이 통째로 실패한다 (v0.1.0 태그에서 그랬다).
+      # 개발 PC 도 24 를 쓴다 — CI 와 손이 같아야 한다.
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       - uses: dtolnay/rust-toolchain@stable
       # 번들에 넣을 CPython 은 스크립트가 따로 내려받는다. 여기 파이썬은 그 스크립트가
       # 아니라 CI 자체가 쓰는 것이라 버전이 같을 필요는 없다.
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Show toolchain
+        run: node -v; npm -v; python --version
 
       - name: Build schedule-engine
         working-directory: packages/schedule-engine
