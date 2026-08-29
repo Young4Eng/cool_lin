@@ -181,6 +181,19 @@ def load_templates(prefix: str) -> list[np.ndarray]:
 # 원래 100% 로 그려졌던 모습에 가깝다. 좌표는 다시 곱해 원래 화면 좌표로 되돌린다.
 UI_SCALES = (1.0, 1.25, 1.5, 1.75, 2.0)
 
+# 여러 배율을 훑으면 «우연히 맞을» 기회도 그만큼 늘어난다. 배율 하나만 볼 때 쓰던
+# 기준을 그대로 두면 다운로드 창이 없는데도 있다고 하게 된다 — 실제로 창이 안 뜬
+# 관리함 화면에서 folderchg 가 배율 1.25 에서 0.522 를 냈다(예전 기준 0.52).
+#
+# 그래서 «창이 있을 때»와 «없을 때»를 같은 화면으로 재서 그 사이로 기준을 옮겼다:
+#              있을 때   없을 때
+#   folderchg   0.737    0.522
+#   period      0.966    0.516
+#   dlbtn       0.720    0.447
+MODAL_FOLDER_THRESH = 0.62
+PERIOD_THRESH = 0.72
+DLBTN_THRESH = 0.56
+
 
 def at_ui_scales(bgr: np.ndarray, run):
     """`run(image)` 을 여러 화면 배율로 돌려 가장 잘 맞은 것을 고른다.
@@ -397,11 +410,11 @@ def modal_visible(hwnd: int) -> bool:
     bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
     fold = load_templates("folderchg")
-    if fold and at_ui_scales(bgr, lambda im: match_in(im, fold, 0.15, 0.9, 0.1, 0.95, thresh=0.52)):
+    if fold and at_ui_scales(bgr, lambda im: match_in(im, fold, 0.15, 0.9, 0.1, 0.95, thresh=MODAL_FOLDER_THRESH)):
         return True
 
     per = load_scaled_templates("period")
-    if per and at_ui_scales(bgr, lambda im: match_scaled(im, per, 0.15, 0.9, 0.0, 0.9, thresh=0.55)):
+    if per and at_ui_scales(bgr, lambda im: match_scaled(im, per, 0.15, 0.9, 0.0, 0.9, thresh=PERIOD_THRESH)):
         return True
 
     return False
@@ -489,7 +502,7 @@ def find_period_fields(hwnd: int):
     tpls = load_scaled_templates("period")
     if not tpls:
         return None
-    m = at_ui_scales(bgr, lambda im: match_scaled(im, tpls, 0.15, 0.9, 0.0, 0.9, thresh=0.55))
+    m = at_ui_scales(bgr, lambda im: match_scaled(im, tpls, 0.15, 0.9, 0.0, 0.9, thresh=PERIOD_THRESH))
     if not m:
         return None
     cx, cy, score, ui, tpl_scale = m
@@ -601,7 +614,7 @@ def click_download_label(hwnd: int, log: Callable[[str], None]) -> None:
     img, sl, st = screenshot_region(l, t, r, b)
     bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     tpls = load_templates("dlbtn")
-    m = at_ui_scales(bgr, lambda im: match_in(im, tpls, 0.45, 0.98, 0.20, 0.98, thresh=0.42)) if tpls else None
+    m = at_ui_scales(bgr, lambda im: match_in(im, tpls, 0.45, 0.98, 0.20, 0.98, thresh=DLBTN_THRESH)) if tpls else None
     if not m:
         # footer is [다운로드] [닫기]; click to the left of 닫기
         close_tpls = load_templates("btndlgclose")
