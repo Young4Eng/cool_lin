@@ -170,6 +170,40 @@ def load_templates(prefix: str) -> list[np.ndarray]:
     return tpls
 
 
+# 화면 배율이 다른 PC 에서도 찾아낸다.
+#
+# 템플릿은 배율 100% 화면에서 잘라 온 것이다. 교실 PC 가 125%·150% 로 맞춰져 있으면
+# 같은 단추가 그만큼 크게 그려져 템플릿과 맞지 않는다. 실제로 배포한 PC 에서
+# 「다운로드 창을 열지 못했습니다」가 났다 — 창은 열렸는데 못 알아본 것이었다.
+# (재현: 100% 캡처를 125% 로 키우면 folderchg 가 바로 실패한다.)
+#
+# 템플릿을 키우는 대신 **화면을 줄여서** 맞춘다. 키운 템플릿은 흐려지지만, 줄인 화면은
+# 원래 100% 로 그려졌던 모습에 가깝다. 좌표는 다시 곱해 원래 화면 좌표로 되돌린다.
+UI_SCALES = (1.0, 1.25, 1.5, 1.75, 2.0)
+
+
+def at_ui_scales(bgr: np.ndarray, run):
+    """`run(image)` 을 여러 화면 배율로 돌려 가장 잘 맞은 것을 고른다.
+
+    `run` 은 `(x, y, score, ...)` 를 주거나 None 을 준다. 돌려주는 값은 화면 좌표로
+    되돌린 `(x, y, score, ui, rest…)` 다. `ui` 는 그 PC 의 화면 배율 추정값이다.
+    """
+    best = None
+    for ui in UI_SCALES:
+        if ui == 1.0:
+            img = bgr
+        else:
+            img = cv2.resize(bgr, None, fx=1.0 / ui, fy=1.0 / ui, interpolation=cv2.INTER_AREA)
+            if img.shape[0] < 60 or img.shape[1] < 60:
+                continue
+        m = run(img)
+        if not m:
+            continue
+        if best is None or m[2] > best[2]:
+            best = (int(round(m[0] * ui)), int(round(m[1] * ui)), m[2], ui) + tuple(m[3:])
+    return best
+
+
 def match_icon(bgr: np.ndarray, tpls: list[np.ndarray], top_frac: float = 0.28, prefer_right: bool = True, thresh: float = 0.58, right_frac: float = 0.0):
     h, w = bgr.shape[:2]
     y1 = max(50, int(h * top_frac))
@@ -303,8 +337,11 @@ def click_template(hwnd: int, prefix: str, log: Callable[[str], None], label: st
             continue
         img, sl, st = screenshot_region(l, t, r, b)
         bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-        m = match_icon(bgr, tpls, top_frac=top_frac, thresh=thresh, right_frac=right_frac)
-        log(f"{label} 탐색 {r-l}x{b-t} → " + (f"{m[2]:.2f}" if m else "없음"))
+        m = at_ui_scales(
+            bgr,
+            lambda im: match_icon(im, tpls, top_frac=top_frac, thresh=thresh, right_frac=right_frac),
+        )
+        log(f"{label} 탐색 {r-l}x{b-t} → " + (f"{m[2]:.2f} (배율 {m[3]})" if m else "없음"))
         if m and (best is None or m[2] > best[2]):
             best = (sl + m[0], st + m[1], m[2], hwnd)
         if m and m[2] >= max(0.70, thresh):
@@ -345,15 +382,29 @@ def open_inbox_if_needed(log: Callable[[str], None]) -> tuple[int, str]:
 
 
 def modal_visible(hwnd: int) -> bool:
-    """True only if the download dialog is actually on screen (폴더변경)."""
-    tpls = load_templates("folderchg")
-    if not tpls:
-        return False
+    """다운로드 창이 정말 화면에 떠 있는가.
+
+    신호를 둘 쓴다 — 「폴더변경」 단추와 「기 간」 라벨. 예전에는 폴더변경 하나만
+    보았는데, 그 템플릿은 글자 크기 12~15px 짜리라 화면 배율이 125% 만 되어도
+    맞지 않는다. 그러면 창은 열렸는데 «안 열렸다»고 판정해, 다시 열려고 세 번
+    누르고는 실패로 끝난다 (배포한 PC 에서 실제로 그랬다).
+
+    둘 중 하나만 잡혀도 창이 뜬 것으로 본다. 여기서 놓치는 쪽이 잘못 잡는 쪽보다
+    훨씬 비싸다 — 잘못 잡으면 다음 단계가 「기 간」 칸을 못 찾아 어차피 멈춘다.
+    """
     l, t, r, b = _rect(hwnd)
     img, _, _ = screenshot_region(l, t, r, b)
     bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-    m = match_in(bgr, tpls, 0.15, 0.9, 0.1, 0.95, thresh=0.52)
-    return m is not None
+
+    fold = load_templates("folderchg")
+    if fold and at_ui_scales(bgr, lambda im: match_in(im, fold, 0.15, 0.9, 0.1, 0.95, thresh=0.52)):
+        return True
+
+    per = load_scaled_templates("period")
+    if per and at_ui_scales(bgr, lambda im: match_scaled(im, per, 0.15, 0.9, 0.0, 0.9, thresh=0.55)):
+        return True
+
+    return False
 
 
 def wait_modal(hwnd: int, timeout: float, gone: bool = False) -> bool:
@@ -427,14 +478,22 @@ def match_scaled(bgr: np.ndarray, tpls: list[tuple[np.ndarray, float]], y0_frac:
 
 
 def find_period_fields(hwnd: int):
-    """두 날짜 칸의 «화면» 좌표를 찾는다. 못 찾으면 None."""
+    """두 날짜 칸의 «화면» 좌표를 찾는다. 못 찾으면 None.
+
+    돌려주는 배율은 **템플릿 배율 x 화면 배율** 이다. 라벨에서 칸까지의 거리도 화면
+    배율만큼 늘어나므로, 둘을 곱하지 않으면 125% 화면에서 클릭이 칸 왼쪽으로 벗어난다.
+    """
     l, t, r, b = _rect(hwnd)
     img, sl, st = screenshot_region(l, t, r, b)
     bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-    m = match_scaled(bgr, load_scaled_templates("period"), 0.15, 0.9, 0.0, 0.9, thresh=0.55)
+    tpls = load_scaled_templates("period")
+    if not tpls:
+        return None
+    m = at_ui_scales(bgr, lambda im: match_scaled(im, tpls, 0.15, 0.9, 0.0, 0.9, thresh=0.55))
     if not m:
         return None
-    cx, cy, score, scale = m
+    cx, cy, score, ui, tpl_scale = m
+    scale = tpl_scale * ui
     start = (sl + cx + int(FIELD_DX_START * scale), st + cy)
     end = (sl + cx + int(FIELD_DX_END * scale), st + cy)
     return start, end, scale, score
@@ -542,14 +601,20 @@ def click_download_label(hwnd: int, log: Callable[[str], None]) -> None:
     img, sl, st = screenshot_region(l, t, r, b)
     bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     tpls = load_templates("dlbtn")
-    m = match_in(bgr, tpls, 0.45, 0.98, 0.20, 0.98, thresh=0.42) if tpls else None
+    m = at_ui_scales(bgr, lambda im: match_in(im, tpls, 0.45, 0.98, 0.20, 0.98, thresh=0.42)) if tpls else None
     if not m:
         # footer is [다운로드] [닫기]; click to the left of 닫기
         close_tpls = load_templates("btndlgclose")
-        c = match_in(bgr, close_tpls, 0.45, 0.98, 0.20, 0.98, thresh=0.50) if close_tpls else None
+        c = (
+            at_ui_scales(bgr, lambda im: match_in(im, close_tpls, 0.45, 0.98, 0.20, 0.98, thresh=0.50))
+            if close_tpls
+            else None
+        )
         if c:
-            m = (c[0] - 80, c[1], c[2])
-            log(f"닫기 왼쪽으로 다운로드 클릭 {c[2]:.2f}")
+            # 「닫기」에서 왼쪽으로 한 칸. 그 거리도 화면 배율만큼 늘어난다 — 100% 기준
+            # 80px 을 그대로 쓰면 125% 화면에서 두 단추 사이 빈 곳을 누른다.
+            m = (c[0] - int(80 * c[3]), c[1], c[2])
+            log(f"닫기 왼쪽으로 다운로드 클릭 {c[2]:.2f} (배율 {c[3]})")
     if not m:
         raise RuntimeError("다운로드 버튼을 창 안에서 찾지 못했습니다.")
     log(f"다운로드 버튼 {m[2]:.2f}")
