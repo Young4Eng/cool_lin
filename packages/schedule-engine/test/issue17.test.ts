@@ -95,3 +95,41 @@ test("E. 게시해 주세요는 당일, 오류 시 연락은 제외", () => {
     "조건문 연락 바랍니다는 할 일이 아니다",
   );
 });
+
+test("F. 다음 줄이 교시면 지시의 마감으로 빼앗지 않는다", () => {
+  const body = `확인 부탁드립니다.
+
+내일 5교시입니다.`;
+  const cs = run(body);
+  const stolen = cs.filter((c) => (c.dueAt ?? c.startAt ?? "").startsWith("2026-08-28") && c.candidateType === "DEADLINE");
+  assert.equal(
+    stolen.length,
+    0,
+    `확인 부탁이 내일 5교시를 마감으로 가져가면 안 된다: ${JSON.stringify(cs.map((c) => ({ t: c.proposedTitle, type: c.candidateType, when: whenOf(c), flags: c.ambiguityFlags })))}`,
+  );
+  const request = cs.find((c) => c.actionText === "확인");
+  if (request) {
+    assert.ok(request.ambiguityFlags.includes("날짜 없이 요청만 적힘"));
+    assert.equal(request.autoRegisterEligible, false);
+  }
+});
+
+test("G. 모레까지 제출은 분명한 일정까지에서 자동등록", () => {
+  const body = "모레까지 학급 명렬표를 제출해 주시기 바랍니다.";
+  const cs = run(body);
+  const hit = cs.find((c) => (c.dueAt ?? c.startAt ?? "").startsWith("2026-08-29"));
+  assert.ok(hit, `모레(8/29) 후보가 있어야 한다: ${JSON.stringify(cs.map((c) => ({ t: c.proposedTitle, when: whenOf(c), type: c.candidateType, flags: c.ambiguityFlags, auto: c.autoRegisterEligible })))}`);
+  assert.equal(hit!.candidateType, "DEADLINE");
+  assert.deepEqual(hit!.ambiguityFlags, []);
+  assert.equal(hit!.autoRegisterEligible, true);
+});
+
+test("H. 다음 주 월요일 회의는 분명한 일정까지에서 자동등록", () => {
+  const body = "다음 주 월요일 부장 회의가 있습니다.";
+  const cs = run(body);
+  const hit = cs.find((c) => (c.startAt ?? "").startsWith("2026-08-31"));
+  assert.ok(hit, `다음 주 월요일(8/31) 후보가 있어야 한다: ${JSON.stringify(cs.map((c) => ({ t: c.proposedTitle, when: whenOf(c), type: c.candidateType, flags: c.ambiguityFlags, auto: c.autoRegisterEligible })))}`);
+  assert.equal(hit!.candidateType, "OFFICIAL_EVENT");
+  assert.deepEqual(hit!.ambiguityFlags, []);
+  assert.equal(hit!.autoRegisterEligible, true);
+});

@@ -18,6 +18,7 @@ import {
   ambiguityFlagsFor,
   AUTO_REGISTER_LEVELS,
   AUTO_REGISTER_THRESHOLD,
+  CLEAR_RELATIVE_DATE_RULES,
   DEFAULT_AUTO_REGISTER_LEVEL,
   evaluateAutoRegister,
   isAutoRegisterLevel,
@@ -267,4 +268,75 @@ test("대상 판정 — 역할 설정이 비어 있으면 대상이 적힌 쪽�
   assert.equal(relatedFor("내일 3학년 담임 선생님들은 협의회에 참석해 주세요.", {}), false);
   // 대상이 아예 안 적힌 쪽지는 역할과 무관하게 나에게 온 것이다.
   assert.equal(relatedFor("내일 건강검진이 진행됩니다.", {}), true);
+});
+
+test("자동등록 단계 — 모레·다음 주 월요일은 0.8 문턱을 건너뛴다", () => {
+  const bare: SentenceSignals = {
+    action: { label: "제출", weight: 1.0 },
+    event: null,
+    isDeadline: true,
+    isOptional: false,
+    isUrgent: false,
+    relation: "new",
+    recurrenceRule: null,
+    recurrenceVague: false,
+    location: null,
+    target: null,
+    conductsEvent: false,
+    optionalNearby: false,
+    allStaff: false,
+    matchesRole: false,
+    targetMismatch: false,
+    keywords: [],
+  };
+  const more: DateMention = {
+    text: "모레까지",
+    index: 0,
+    startAt: "2026-08-30",
+    precision: "date_only",
+    flags: [],
+    rule: "day-after-tomorrow",
+  };
+  const scored = scoreCandidate(more, bare, civil(2026, 8, 28));
+  assert.ok(scored.confidence < AUTO_REGISTER_THRESHOLD["분명한 일정까지"], String(scored.confidence));
+  assert.ok(CLEAR_RELATIVE_DATE_RULES.has("day-after-tomorrow"));
+  assert.ok(CLEAR_RELATIVE_DATE_RULES.has("next-week-weekday"));
+
+  const relative = evaluateAutoRegister({
+    candidateType: "DEADLINE",
+    when: more.startAt,
+    ambiguityFlags: [],
+    relationType: "new",
+    confidence: scored.confidence,
+    isOptional: false,
+    related: true,
+    dateRule: more.rule,
+  });
+  assert.equal(relative.eligible, true, relative.blockers.join(" / "));
+
+  const calendar = evaluateAutoRegister({
+    candidateType: "DEADLINE",
+    when: "2026-09-02",
+    ambiguityFlags: [],
+    relationType: "new",
+    confidence: scored.confidence,
+    isOptional: false,
+    related: true,
+    dateRule: "absolute-md",
+  });
+  assert.equal(calendar.eligible, false);
+  assert.ok(calendar.blockers.some((b) => b.includes("기준에 미치지 못함")));
+
+  const strict = evaluateAutoRegister({
+    candidateType: "DEADLINE",
+    when: more.startAt,
+    ambiguityFlags: [],
+    relationType: "new",
+    confidence: scored.confidence,
+    isOptional: false,
+    related: true,
+    dateRule: more.rule,
+    level: "아주 확실한 것만",
+  });
+  assert.equal(strict.eligible, false);
 });
