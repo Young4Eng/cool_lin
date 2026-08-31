@@ -3,8 +3,8 @@ import { extractMessages } from "./adapters/columns.js";
 import { parseWorkbook } from "./adapters/workbook.js";
 import { band, classifySentence, type UserRole } from "./classify/classify.js";
 import { diffDays, startOfDay, type Civil } from "./dates/civil.js";
-import { extractDates, sendDayRequestMention, type PeriodTable } from "./dates/resolve.js";
-import { ACTION_TERMS, REQUEST_ENDINGS } from "./classify/lexicon.js";
+import { type PeriodTable } from "./dates/resolve.js";
+import { resolveSentenceDates } from "./dates/requestDates.js";
 import { parseSentAt } from "./dates/sentAt.js";
 import {
   ambiguityFlagsFor,
@@ -161,23 +161,12 @@ export async function runPipeline(files: string[], options: PipelineOptions = {}
       const sentences = splitSentences(sensitive.masked);
       let producedForMessage = 0;
 
-      for (const sentence of sentences) {
-        let dates = extractDates(sentence.text, { sentAt, periodTable });
-
-        // 날짜가 없어도 «나에게 시키는» 문장이면 발송일 마감으로 잡는다.
-        // 「학급 게시판에 붙여 주세요」처럼 기한을 안 적은 지시가 흔한데, 그동안 날짜가
-        // 없다는 이유로 후보조차 되지 못해 교사가 놓쳤다. 지어낸 날짜라는 표시가 붙어
-        // 있어 자동 등록은 막히고 검토함으로 간다.
-        if (dates.length === 0) {
-          const isRequest =
-            REQUEST_ENDINGS.test(sentence.text) &&
-            ACTION_TERMS.some((a) => a.term.test(sentence.text));
-          if (!isRequest) continue;
-          dates = [sendDayRequestMention(sentAt)];
-        }
+      for (const { index, dates, boundSource } of resolveSentenceDates(sentences, { sentAt, periodTable })) {
+        const sentence = sentences[index]!;
+        const classifyText = boundSource ? `${sentence.text} ${boundSource}` : sentence.text;
 
         const verdict = classifySentence({
-          sentence: sentence.text,
+          sentence: classifyText,
           body: sensitive.masked,
           dates,
           sentAt,

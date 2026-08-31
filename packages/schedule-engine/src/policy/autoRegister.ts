@@ -45,6 +45,16 @@ export const AUTO_REGISTER_THRESHOLD: Record<AutoRegisterLevel, number> = {
   "분명한 일정까지": 0.8,
 };
 
+/** 발송일만 보면 날짜가 확정되는 상대 표현 (RULES.md 11장). 요일만 적힌 것은 제외. */
+export const CLEAR_RELATIVE_DATE_RULES = new Set<string>([
+  "today",
+  "tomorrow",
+  "day-after-tomorrow",
+  "three-days-later",
+  "this-week-weekday",
+  "next-week-weekday",
+]);
+
 export function isAutoRegisterLevel(value: unknown): value is AutoRegisterLevel {
   return AUTO_REGISTER_LEVELS.includes(value as AutoRegisterLevel);
 }
@@ -169,8 +179,14 @@ export function evaluateAutoRegister(input: AutoRegisterInput): AutoRegisterVerd
   if (input.dateRule === "time-only-assumed-send-day") blockers.push("날짜 없이 시각만 적힘");
 
   // ── 신뢰도 문턱 (단계가 바꾸는 유일한 값) ─────────────────────────
+  // 「모레」·「다음 주 월요일」은 발송일만 보면 날짜가 확정된다 (RULES.md 11장).
+  // 확인 표시가 없는데도 날짜만 0.26이라 0.8 문턱에 가로막히면, 문서가 약속한
+  // 자동등록이 안 된다. `분명한 일정까지`에서만 이 상대 날짜는 문턱을 건너뛴다.
+  // `금요일까지`는 `요일만 적힘`이 붙으므로 여기 오지 않는다.
   const threshold = AUTO_REGISTER_THRESHOLD[level];
-  if (input.confidence < threshold) {
+  const clearRelative =
+    level === "분명한 일정까지" && CLEAR_RELATIVE_DATE_RULES.has(input.dateRule);
+  if (!clearRelative && input.confidence < threshold) {
     blockers.push(`「${level}」 기준에 미치지 못함`);
   }
 
